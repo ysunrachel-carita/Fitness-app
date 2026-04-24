@@ -20,3 +20,8 @@ h1, h2, h3 {
   line-height: 0.92;
   letter-spacing: 0.08em;
 }
+
+/* Prevent iOS input zoom globally */
+input, select, textarea {
+    font-size: 16px !important;
+}

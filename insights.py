@@ -138,7 +138,13 @@ def pr_staleness(user_id, conn=None):
     frequent_exercises = cursor.fetchall()
     
     for row in frequent_exercises:
-        ex_id = row['exercise_id'] if type(row) is sqlite3.Row else row[0]
+        # Handle both sqlite3.Row and psycopg2 DictRow/tuple
+        if hasattr(row, 'keys'):
+            ex_id = row['exercise_id']
+        elif isinstance(row, (list, tuple)):
+            ex_id = row[0]
+        else:
+            ex_id = row
         
         cursor.execute('''
             SELECT MAX(e.weight_kg) 

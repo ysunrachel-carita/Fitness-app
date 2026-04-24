@@ -306,6 +306,33 @@
     text-decoration: underline;
 }
 
+/* Icon Buttons */
+.workout-icon-btn {
+    background: transparent;
+    border: none;
+    font-size: 18px;
+    padding: 8px;
+    cursor: pointer;
+    min-width: 40px;
+    min-height: 40px;
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease, background 0.15s ease;
+    border-radius: var(--radius-sm);
+}
+
+.workout-icon-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255,255,255,0.05);
+}
+
+.workout-icon-btn--danger:hover {
+    color: var(--danger-color);
+    background: rgba(255,0,0,0.1);
+}
+
 /* Add Group button */
 .add-group-row {
     margin-top: 4px;
@@ -329,7 +356,7 @@
     position: absolute;
     top: 0;
     left: 0;
-    width: 4px;
+    width: 2px;
     height: 100%;
     background: linear-gradient(180deg, var(--primary-color), #2563eb);
     border-top-left-radius: var(--radius-lg);
@@ -419,13 +446,23 @@
     }
 
     .delete-comp-btn {
-        position: absolute;
-        top: 8px;
-        right: 8px;
-        width: 32px;
-        height: 32px;
-        background: rgba(255, 0, 0, 0.1);
-        border-radius: 50%;
+        position: relative;
+        top: auto;
+        right: auto;
+        width: 100%;
+        height: 44px;
+        background: transparent;
+        border: 1px solid rgba(255, 0, 0, 0.2);
+        border-radius: var(--radius-sm);
         color: var(--danger-color);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin-top: 4px;
+    }
+
+    .delete-comp-btn::after {
+        content: ' Remove Exercise';
+        margin-left: 6px;
     }
 }

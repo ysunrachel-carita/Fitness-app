@@ -1,0 +1,234 @@
+id,name,category,is_calorie,canonical_key
+1,front squat,Legs,0,front squat
+2,back squat,Legs,0,back squat
+3,sumo squat,Legs,0,sumo squat
+4,goblet squat,Legs,0,goblet squat
+5,overhead squat,Legs,0,overhead squat
+6,deadlift,Legs,0,deadlift
+7,conventional deadlift,Legs,0,conventional deadlift
+8,sumo deadlift,Legs,0,sumo deadlift
+9,romanian deadlift,Legs,0,romanian deadlift
+10,lunge,Legs,0,lunge
+11,walking lunge,Legs,0,walking lunge
+12,reverse lunge,Legs,0,reverse lunge
+13,bulgarian split squat,Legs,0,bulgarian split squat
+14,jumping lunge,Legs,0,jumping lunge
+15,leg press,Legs,0,leg press
+16,hack squat,Legs,0,hack squat
+17,leg extension,Legs,0,leg extension
+18,leg curl,Legs,0,leg curl
+19,sissy squat,Legs,0,sissy squat
+20,calf raise,Legs,0,calf raise
+21,seated calf raise,Legs,0,seated calf raise
+22,standing calf raise,Legs,0,standing calf raise
+23,donkey calf raise,Legs,0,donkey calf raise
+24,box squat,Legs,0,box squat
+25,zercher squat,Legs,0,zercher squat
+26,good morning,Legs,0,good morning
+27,hip thrust,Legs,0,hip thrust
+28,glute bridge,Legs,0,glute bridge
+29,bench press,Chest,0,bench press
+30,flat bench press,Chest,0,flat bench press
+31,incline bench press,Chest,0,incline bench press
+32,decline bench press,Chest,0,decline bench press
+33,dumbbell bench press,Chest,0,dumbbell bench press
+34,incline dumbbell press,Chest,0,incline dumbbell press
+35,decline dumbbell press,Chest,0,decline dumbbell press
+36,close grip bench press,Chest,0,close grip bench press
+37,dips,Chest,0,dip
+38,chest dips,Chest,0,chest dip
+39,parallel bar dips,Chest,0,parallel bar dip
+40,ring dips,Chest,0,ring dip
+41,push-up,Chest,0,push up
+42,wide push-up,Chest,0,wide push up
+43,close grip push-up,Chest,0,close grip push up
+44,decline push-up,Chest,0,decline push up
+45,clapping push-up,Chest,0,clapping push up
+46,chest fly,Chest,0,chest fly
+47,dumbbell fly,Chest,0,dumbbell fly
+48,cable fly,Chest,0,cable fly
+49,pec deck,Chest,0,pec deck
+50,incline fly,Chest,0,incline fly
+51,dumbbell pullover,Chest,0,dumbbell pullover
+52,cable crossover,Chest,0,cable crossover
+53,floor press,Chest,0,floor press
+54,board press,Chest,0,board press
+55,pull-up,Back,0,pull up
+56,chin-up,Back,0,chin up
+57,wide grip pull-up,Back,0,wide grip pull up
+58,close grip pull-up,Back,0,close grip pull up
+59,mixed grip pull-up,Back,0,mixed grip pull up
+60,lat pulldown,Back,0,lat pulldown
+61,wide grip pulldown,Back,0,wide grip pulldown
+62,close grip pulldown,Back,0,close grip pulldown
+63,reverse grip pulldown,Back,0,reverse grip pulldown
+64,bent over row,Back,0,bent over row
+65,barbell row,Back,0,barbell row
+66,dumbbell row,Back,0,dumbbell row
+67,t-bar row,Back,0,t bar row
+68,pendlay row,Back,0,pendlay row
+69,seated row,Back,0,seated row
+70,cable row,Back,0,cable row
+71,machine row,Back,0,machine row
+72,single arm row,Back,0,single arm row
+73,snatch grip deadlift,Back,0,snatch grip deadlift
+74,hyperextension,Back,0,hyperextension
+75,back extension,Back,0,back extension
+76,reverse hyper,Back,0,reverse hyper
+77,face pull,Back,0,face pull
+78,reverse fly,Back,0,reverse fly
+79,dumbbell reverse fly,Back,0,dumbbell reverse fly
+80,renegade row,Back,0,renegade row
+81,overhead press,Shoulders,0,overhead press
+82,military press,Shoulders,0,military press
+83,strict press,Shoulders,0,strict press
+84,push press,Shoulders,0,push press
+85,dumbbell shoulder press,Shoulders,0,dumbbell shoulder press
+86,seated dumbbell press,Shoulders,0,seated dumbbell press
+87,arnold press,Shoulders,0,arnold press
+88,landmine press,Shoulders,0,landmine press
+89,lateral raise,Shoulders,0,lateral raise
+90,side lateral raise,Shoulders,0,side lateral raise
+91,cable lateral raise,Shoulders,0,cable lateral raise
+92,bent over lateral raise,Shoulders,0,bent over lateral raise
+93,front raise,Shoulders,0,front raise
+94,dumbbell front raise,Shoulders,0,dumbbell front raise
+95,cable front raise,Shoulders,0,cable front raise
+96,plate raise,Shoulders,0,plate raise
+97,rear delt fly,Shoulders,0,rear delt fly
+98,bent over rear delt fly,Shoulders,0,bent over rear delt fly
+99,reverse pec deck,Shoulders,0,reverse pec deck
+100,upright row,Shoulders,0,upright row
+101,barbell upright row,Shoulders,0,barbell upright row
+102,dumbbell upright row,Shoulders,0,dumbbell upright row
+103,kettlebell upright row,Shoulders,0,kettlebell upright row
+104,shrug,Shoulders,0,shrug
+105,barbell shrug,Shoulders,0,barbell shrug
+106,dumbbell shrug,Shoulders,0,dumbbell shrug
+107,cable shrug,Shoulders,0,cable shrug
+108,bicep curl,Arms,0,bicep curl
+109,barbell curl,Arms,0,barbell curl
+110,dumbbell curl,Arms,0,dumbbell curl
+111,hammer curl,Arms,0,hammer curl
+112,preacher curl,Arms,0,preacher curl
+113,concentration curl,Arms,0,concentration curl
+114,cable curl,Arms,0,cable curl
+115,incline dumbbell curl,Arms,0,incline dumbbell curl
+116,reverse curl,Arms,0,reverse curl
+117,tricep pushdown,Arms,0,tricep pushdown
+118,cable tricep pushdown,Arms,0,cable tricep pushdown
+119,rope tricep pushdown,Arms,0,rope tricep pushdown
+120,v-bar pushdown,Arms,0,v bar pushdown
+121,overhead tricep extension,Arms,0,overhead tricep extension
+122,dumbbell overhead extension,Arms,0,dumbbell overhead extension
+123,cable overhead extension,Arms,0,cable overhead extension
+124,skull crusher,Arms,0,skull crusher
+125,lying tricep extension,Arms,0,lying tricep extension
+126,tricep dip,Arms,0,tricep dip
+127,bench dip,Arms,0,bench dip
+130,plank,Core,0,plank
+131,side plank,Core,0,side plank
+132,plank with shoulder tap,Core,0,plank with shoulder tap
+133,plank with reach,Core,0,plank with reach
+134,crunch,Core,0,crunch
+135,sit-up,Core,0,sit up
+136,reverse crunch,Core,0,reverse crunch
+137,hanging leg raise,Core,0,hanging leg raise
+138,toes to bar,Core,0,toes to bar
+139,leg raise,Core,0,leg raise
+140,lying leg raise,Core,0,lying leg raise
+141,hanging knee raise,Core,0,hanging knee raise
+142,knee up,Core,0,knee up
+143,russian twist,Core,0,russian twist
+144,cable russian twist,Core,0,cable russian twist
+145,medicine ball twist,Core,0,medicine ball twist
+146,wood chop,Core,0,wood chop
+147,dead bug,Core,0,dead bug
+148,bird dog,Core,0,bird dog
+149,superman,Core,0,superman
+150,hollow body hold,Core,0,hollow body hold
+151,ab wheel rollout,Core,0,ab wheel rollout
+152,cable crunch,Core,0,cable crunch
+153,machine crunch,Core,0,machine crunch
+154,dragon flag,Core,0,dragon flag
+155,thruster,CrossFit,0,thruster
+156,wall ball,CrossFit,0,wall ball
+157,box jump,CrossFit,0,box jump
+158,double under,CrossFit,0,double under
+159,single under,CrossFit,0,single under
+160,kettlebell swing,CrossFit,0,kettlebell swing
+161,kettlebell snatch,CrossFit,0,kettlebell snatch
+162,kettlebell clean,CrossFit,0,kettlebell clean
+163,kettlebell jerk,CrossFit,0,kettlebell jerk
+164,clean,CrossFit,0,clean
+165,power clean,CrossFit,0,power clean
+166,hang clean,CrossFit,0,hang clean
+167,squat clean,CrossFit,0,squat clean
+168,split clean,CrossFit,0,split clean
+169,jerk,CrossFit,0,jerk
+170,push jerk,CrossFit,0,push jerk
+171,split jerk,CrossFit,0,split jerk
+172,squat jerk,CrossFit,0,squat jerk
+173,snatch,CrossFit,0,snatch
+174,power snatch,CrossFit,0,power snatch
+175,hang snatch,CrossFit,0,hang snatch
+176,squat snatch,CrossFit,0,squat snatch
+177,split snatch,CrossFit,0,split snatch
+178,burpee,CrossFit,0,burpee
+179,burpee box jump,CrossFit,0,burpee box jump
+180,burpee pull-up,CrossFit,0,burpee pull up
+181,chest to bar pull-up,CrossFit,0,chest to bar pull up
+182,muscle up,CrossFit,0,muscle up
+183,bar muscle up,CrossFit,0,bar muscle up
+184,ring muscle up,CrossFit,0,ring muscle up
+185,strict muscle up,CrossFit,0,strict muscle up
+186,handstand push-up,CrossFit,0,handstand push up
+187,handstand walk,CrossFit,0,handstand walk
+188,wall walk,CrossFit,0,wall walk
+189,pistols,CrossFit,0,pistols
+190,knees to elbow,CrossFit,0,knees to elbow
+191,chest to bar,CrossFit,0,chest to bar
+192,Row erg,CrossFit,1,row erg
+193,meter row,CrossFit,1,meter row
+194,Bike erg,CrossFit,1,bike erg
+195,Ski erg,CrossFit,1,ski erg
+196,assault bike,CrossFit,1,assault bike
+198,triple under,CrossFit,0,triple under
+199,rope climb,CrossFit,0,rope climb
+200,sled push,CrossFit,0,sled push
+201,sled pull,CrossFit,0,sled pull
+202,archer pull-up,Calisthenics,0,archer pull up
+203,false grip muscle up,Calisthenics,0,false grip muscle up
+205,korean dip,Calisthenics,0,korean dip
+206,diamond push-up,Calisthenics,0,diamond push up
+207,archer push-up,Calisthenics,0,archer push up
+208,pike push-up,Calisthenics,0,pike push up
+209,wall handstand push-up,Calisthenics,0,wall handstand push up
+210,free handstand push-up,Calisthenics,0,free handstand push up
+211,front lever,Calisthenics,0,front lever
+212,back lever,Calisthenics,0,back lever
+213,planche,Calisthenics,0,planche
+214,straddle planche,Calisthenics,0,straddle planche
+215,full planche,Calisthenics,0,full planche
+216,human flag,Calisthenics,0,human flag
+217,side flag,Calisthenics,0,side flag
+218,l-sit,Calisthenics,0,l sit
+219,v-sit,Calisthenics,0,v sit
+220,pistol squat,Calisthenics,0,pistol squat
+221,shrimp squat,Calisthenics,0,shrimp squat
+222,cossack squat,Calisthenics,0,cossack squat
+223,clapping pull-up,Calisthenics,0,clapping pull up
+224,one arm push-up,Calisthenics,0,one arm push up
+225,one arm pull-up,Calisthenics,0,one arm pull up
+226,l-sit to v-sit,Calisthenics,0,l sit to v sit
+227,clean and jerk,Full Body,0,clean and jerk
+228,battle rope,Full Body,0,battle rope
+229,tire flip,Full Body,0,tire flip
+230,sledge hammer,Full Body,0,sledge hammer
+231,farmers walk,Full Body,0,farmers walk
+232,suitcase carry,Full Body,0,suitcase carry
+233,overhead carry,Full Body,0,overhead carry
+234,yoke walk,Full Body,0,yoke walk
+235,prowler push,Full Body,0,prowler push
+246,single leg pylo step up,Other,0,single leg pylo step up
+247,rest,Other,0,rest

@@ -1,0 +1,11 @@
+id,user_id,date,type,notes,created_at,context,time_cap_minutes,emom_interval,emom_duration
+1,1,2026-04-22,strength,Leg day,2026-04-22 16:07:05,,,,
+2,1,2026-04-22,complex,Bear complex,2026-04-22 16:07:05,,,,
+3,1,2026-04-22,emom,,2026-04-22 16:07:05,,,,
+4,1,2026-04-22,emom,,2026-04-22 18:08:40,,,,
+5,1,2026-04-22,complex,,2026-04-22 18:08:40,,,,
+6,1,2026-04-22,strength,,2026-04-22 18:08:40,,,,
+7,1,2026-04-23,Murph Variant,"Felt good
+Result: 30:00",2026-04-23 02:05:24,,,,
+9,2,2026-04-22,OHS,,2026-04-23 18:04:27,For Load,,,
+14,2,2026-04-22,Deadlift,,2026-04-24 03:53:08,EMOM,,1,12

@@ -53,9 +53,10 @@
 }
 
 .progress-dropdown--section .preview-dropdown-btn {
-    min-width: 220px;
-    padding: 10px 18px;
-    font-size: 15px;
+    width: 100%;
+    max-width: 100%;
+    padding: 12px 16px;
+    font-size: 16px;
     font-weight: 500;
     color: var(--text-primary);
 }
@@ -341,12 +342,20 @@
 }
 
 .progress-rm-entry-label,
-.progress-rm-entry-kind,
-.progress-pr-highlight-label {
+.progress-rm-entry-kind {
     font-family: var(--font-body);
     font-size: 11px;
     letter-spacing: 0.04em;
     text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.progress-pr-highlight-label {
+    font-family: var(--font-body);
+    font-size: 10px;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    opacity: 0.6;
     color: var(--text-muted);
 }
 
@@ -443,10 +452,12 @@
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    padding: 12px 14px;
+    padding: 12px 8px;
+    text-align: center;
 }
 
-.progress-pr-highlight-value {
+.progress-pr-highlight-value,
+.progress-pr-highlight-detail {
     margin-top: 6px;
     font-size: 18px;
     font-weight: 700;
@@ -478,8 +489,7 @@
         align-items: flex-start;
     }
 
-    .progress-rm-grid,
-    .progress-pr-highlights {
+    .progress-rm-grid {
         grid-template-columns: 1fr 1fr;
     }
 }
@@ -490,7 +500,6 @@
     }
 
     .progress-rm-grid,
-    .progress-pr-highlights,
     .progress-pr-grid {
         grid-template-columns: 1fr;
     }

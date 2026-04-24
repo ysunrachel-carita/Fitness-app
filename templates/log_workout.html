@@ -22,19 +22,29 @@
 
         <!-- LEFT: tips -->
         <aside class="log-workout-tips">
-            <div class="log-workout-tip">
-                <div class="log-workout-tip-label">Group</div>
-                <p>A block of exercises. Add a group for each set or circuit round.</p>
-            </div>
-            <div class="log-workout-tip">
-                <div class="log-workout-tip-label">Duplicate</div>
-                <p>Copies an entire group exactly. Use it when the next round changes weights or reps.</p>
-            </div>
-            <div class="log-workout-tip">
-                <div class="log-workout-tip-label">Repeat</div>
-                <p>Build 1 group, set Repeat to your round count. Perfect for EMOMs and identical circuits — logs
-                    automatically.</p>
-            </div>
+            <details>
+                <summary style="cursor:pointer; font-weight:600; padding: 8px 0; color: var(--text-primary); font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.05em;">
+                    Logging Instruction ▾
+                </summary>
+                <div style="margin-top: 12px;">
+                    <div class="log-workout-tip">
+                        <div class="log-workout-tip-label">Group</div>
+                        <p>A block of exercises. Add a group for each set or circuit round.</p>
+                    </div>
+                    <div class="log-workout-tip">
+                        <div class="log-workout-tip-label">⧉ Duplicate</div>
+                        <p>Copies an entire group exactly. Use it when the next round changes weights or reps.</p>
+                    </div>
+                    <div class="log-workout-tip">
+                        <div class="log-workout-tip-label">🗑️ Delete</div>
+                        <p>Removes a group.</p>
+                    </div>
+                    <div class="log-workout-tip">
+                        <div class="log-workout-tip-label">Repeat</div>
+                        <p>Build 1 group, set Repeat to your round count. Perfect for EMOMs and identical circuits — logs automatically.</p>
+                    </div>
+                </div>
+            </details>
         </aside>
 
         <!-- RIGHT: FORM -->
@@ -143,9 +153,8 @@
         <div class="set-group-header">
             <span class="set-group-label">Group</span>
             <div class="set-group-actions">
-                <button type="button" class="workout-inline-action duplicate-group-btn">Duplicate</button>
-                <button type="button"
-                    class="workout-inline-action workout-inline-action--danger delete-group-btn">Delete</button>
+                <button type="button" class="workout-icon-btn duplicate-group-btn" title="Duplicate">⧉</button>
+                <button type="button" class="workout-icon-btn workout-icon-btn--danger delete-group-btn" title="Delete">🗑️</button>
             </div>
         </div>
         <div class="set-group-body">
@@ -325,9 +334,9 @@
                     clearTimeout(fetchPerfTimeout);
                     fetchRecentPerf(input.value, recentPerfEl);
 
-                    // Move focus to reps field
+                    // Move focus to weight field
                     const row = input.closest('.component-row');
-                    if (row) row.querySelector('.comp-reps')?.focus();
+                    if (row) row.querySelector('.comp-weight')?.focus();
                 }
             });
 

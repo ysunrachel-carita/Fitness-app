@@ -33,14 +33,14 @@
             {% else %}
                 {% for activity in activities %}
                     <div class="card activity-card card--{{ activity.type }}" onclick="toggleActivityCard(this)">
-                        <div class="flex flex-between">
+                        <div class="flex flex-between" style="display: flex; justify-content: space-between; align-items: center;">
                             <span class="card-meta">
                                 {% if activity.type == 'lift' %}🏋️ LIFT
                                 {% elif activity.type == 'workout' %}⏱️ WORKOUT
                                 {% elif activity.type == 'run' %}🏃 RUN
                                 {% endif %}
                             </span>
-                            <span class="card-meta">{{ activity.date.split(' ')[0] }}</span>
+                            <span class="card-meta" style="white-space: nowrap;">{{ activity.date|format_short_date }}</span>
                         </div>
 
                         <h3>{{ activity.title.title() if activity.title else 'Untitled' }}</h3>
@@ -114,7 +114,7 @@
             {% endif %}
         </div> <!-- grid -->
 
-        <div style="margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
+        <div style="margin-top: 32px; display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; padding-bottom: calc(12px + env(safe-area-inset-bottom));">
             <a href="/lifts" class="btn btn--primary btn--sm">Log Lift</a>
             <a href="/log_workout" class="btn btn--primary btn--sm">Log Workout</a>
             <a href="/log_run" class="btn btn--primary btn--sm">Log Run</a>

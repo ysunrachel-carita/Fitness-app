@@ -6,8 +6,15 @@ from uuid import uuid4
 from flask import jsonify
 from flask import Flask, render_template, request, session, redirect, url_for, flash
 import sqlite3
+import psycopg2
+from psycopg2.extras import DictCursor
+import re
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 
 app = Flask(__name__)
@@ -24,12 +31,15 @@ def api_exercises():
 @app.route('/api/insights/<int:user_id>')
 def api_insights(user_id):
     from insights import weekly_volume_spike, recovery_flags, pr_staleness
-    
-    results = {
-        "volume_spike": weekly_volume_spike(user_id),
-        "recovery": recovery_flags(user_id),
-        "pr_staleness": pr_staleness(user_id)
-    }
+    conn = get_db()
+    try:
+        results = {
+            "volume_spike": weekly_volume_spike(user_id, conn),
+            "recovery": recovery_flags(user_id, conn),
+            "pr_staleness": pr_staleness(user_id, conn)
+        }
+    finally:
+        conn.close()
     return jsonify(results)
 
 app.secret_key = "replace_this_with_a_random_secret"
@@ -54,6 +64,7 @@ def format_set_label(value):
     return 'set' if int(value) == 1 else 'sets'
 
 
+@app.template_filter('format_short_date')
 def format_short_date(value):
     if not value:
         return "-"
@@ -957,11 +968,128 @@ def normalize_exercise_input(user_input):
     return _friendly_display_name(user_input) or None
 
 # --- DATABASE ---
+class PgCursorWrapper:
+    def __init__(self, cursor, lastrowid=None, pragma_mock_rows=None):
+        self._cursor = cursor
+        self.lastrowid = lastrowid
+        self._pragma_mock_rows = pragma_mock_rows
+
+    def fetchall(self):
+        if self._pragma_mock_rows is not None:
+            return self._pragma_mock_rows
+        if self._cursor:
+            return self._cursor.fetchall()
+        return []
+
+    def fetchone(self):
+        if self._pragma_mock_rows is not None:
+            return self._pragma_mock_rows[0] if self._pragma_mock_rows else None
+        if self._cursor:
+            return self._cursor.fetchone()
+        return None
+
+    def __iter__(self):
+        if self._pragma_mock_rows is not None:
+            return iter(self._pragma_mock_rows)
+        if self._cursor:
+            return iter(self._cursor)
+        return iter([])
+
+    @property
+    def rowcount(self):
+        if self._cursor:
+            return self._cursor.rowcount
+        return 0
+
+class PgWrapper:
+    def __init__(self, conn):
+        self.conn = conn
+
+    def execute(self, query, params=None):
+        # 1. Handle PRAGMA foreign_keys
+        if "PRAGMA foreign_keys" in query:
+            return PgCursorWrapper(None)
+            
+        # 2. Handle PRAGMA table_info
+        if "PRAGMA table_info" in query:
+            m = re.search(r"table_info\((.*?)\)", query)
+            if m:
+                table_name = m.group(1).strip("'\"")
+                pg_query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'"
+                with self.conn.cursor() as cursor:
+                    cursor.execute(pg_query)
+                    rows = cursor.fetchall()
+                # sqlite returns (cid, name, type, notnull, dflt_value, pk)
+                mock_rows = [(0, row[0], 'TEXT', 0, None, 0) for row in rows]
+                return PgCursorWrapper(None, pragma_mock_rows=mock_rows)
+
+        # 3. Handle sqlite_master check (common in _table_exists)
+        if "sqlite_master" in query:
+            query = query.replace("sqlite_master", "information_schema.tables") \
+                         .replace("type='table' AND name =", "table_name =")
+
+        # 4. Handle SUBSTR on dates (Postgres TIMESTAMP needs casting or different function)
+        # We'll translate the most common pattern used in this app
+        pg_query = query.replace('?', '%s')
+        pg_query = pg_query.replace('SUBSTR(date, 1, 10)', 'date::date::text')
+        pg_query = pg_query.replace('SUBSTR(s.date, 1, 10)', 's.date::date::text')
+        pg_query = pg_query.replace('SUBSTR(ws.date, 1, 10)', 'ws.date::date::text')
+
+        is_insert = pg_query.strip().upper().startswith("INSERT")
+        needs_returning = is_insert and "RETURNING" not in pg_query.upper()
+        
+        if needs_returning:
+            # Avoid appending RETURNING to tables that don't have an 'id' column
+            if "INSERT INTO user_profiles" in pg_query.upper():
+                pass
+            else:
+                pg_query = pg_query.rstrip("; \n\r\t") + " RETURNING id"
+                
+        cursor = self.conn.cursor(cursor_factory=DictCursor)
+        
+        try:
+            if params:
+                cursor.execute(pg_query, params)
+            else:
+                cursor.execute(pg_query)
+        except Exception as e:
+            # Log the error for easier debugging on Render
+            print(f"❌ DATABASE ERROR: {e}")
+            print(f"QUERY: {pg_query}")
+            self.conn.rollback()
+            raise e
+            
+        lastrowid = None
+        if needs_returning and "RETURNING id" in pg_query:
+            row = cursor.fetchone()
+            if row:
+                lastrowid = row[0]
+                
+        return PgCursorWrapper(cursor, lastrowid)
+
+    def commit(self):
+        self.conn.commit()
+
+    def close(self):
+        self.conn.close()
+
+    def rollback(self):
+        self.conn.rollback()
+
+    @property
+    def row_factory(self):
+        pass
+
+    @row_factory.setter
+    def row_factory(self, val):
+        pass
+
 def get_db():
-    conn = sqlite3.connect("fitness.db")
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON")
-    return conn
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        raise ValueError("DATABASE_URL environment variable is not set")
+    conn = psycopg2.connect(database_url)
+    return PgWrapper(conn)
 
 def get_all_exercises():
     conn = get_db()
@@ -1595,7 +1723,7 @@ def _ensure_canonical_key_unique_index():
     finally:
         conn.close()
 
-init_db()
+# init_db()  # Commented out because we are using Supabase now
 
 def get_user(username):
     conn = get_db()
