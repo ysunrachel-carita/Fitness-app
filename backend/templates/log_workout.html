@@ -314,7 +314,7 @@
                     else if (n.startsWith(normQ)) score = 1;
                     else if (n.includes(normQ)) score = 2;
                     return { ex, score };
-                }).filter(s => s.score < 4).sort((a, b) => a.score - b.score).slice(0, 6);
+                }).filter(s => s.score < 4).sort((a, b) => a.score - b.score).slice(0, 8);
 
                 if (scored.length) {
                     suggestionsEl.innerHTML = scored.map(s =>

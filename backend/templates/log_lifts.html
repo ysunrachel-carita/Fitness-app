@@ -265,7 +265,10 @@ document.addEventListener('DOMContentLoaded', function() {
 
         scored.sort((a, b) => a.score - b.score);
 
-        const unique = scored.slice(0, 5).map(s => s.ex);
+        const unique = scored
+            .filter(s => s.score < 4)
+            .slice(0, 8)
+            .map(s => s.ex);
 
         if (unique.length > 0) {
             suggestionsDiv.innerHTML = unique.map(function(ex) {

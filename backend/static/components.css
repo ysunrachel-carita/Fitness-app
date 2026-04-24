@@ -730,10 +730,12 @@ input[type="date"].form-input {
     background: var(--bg-tertiary);
     border: 1px solid var(--border-color);
     border-radius: var(--radius-sm);
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
     z-index: 1000;
     display: none;
+    box-shadow: var(--shadow-lg);
+    min-width: 280px;
 }
 
 .suggestions-dropdown div {
