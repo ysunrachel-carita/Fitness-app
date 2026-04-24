@@ -183,7 +183,7 @@
                         {% endif %}
 
                         <div class="card-meta">
-                            {{ row.date.split(' ')[0] }}
+                            {{ row.date|string|truncate(10, True, '') }}
                         </div>
 
                     </div>

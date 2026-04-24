@@ -111,7 +111,7 @@
 
                         <div class="form-group">
                             <label class="form-label">Date</label>
-                            <input class="form-input" type="date" name="date" value="{{ run.date.split(' ')[0] }}" required>
+                            <input class="form-input" type="date" name="date" value="{{ run.date|string|truncate(10, True, '') }}" required>
                         </div>
 
                         <div class="form-group">

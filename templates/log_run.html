@@ -114,7 +114,7 @@
                         <div class="log-run-pb-row" data-run-id="{{ run.id }}" data-pace-sec="{{ run.pace_seconds_per_km }}">
                             <div class="log-run-pb-meta">
                                 <span class="log-run-pb-distance">{{ run.distance_display }}</span>
-                                <span class="log-run-pb-date">{{ run.date.split(' ')[0] }}</span>
+                                <span class="log-run-pb-date">{{ run.date|string|truncate(10, True, '') }}</span>
                             </div>
                             <div class="log-run-pb-right">
                                 <span class="log-run-pb-pace">{{ run.pace_display }}</span>
@@ -142,7 +142,7 @@
                         <div class="log-run-pb-row" data-run-id="{{ run.id }}" data-distance-km="{{ run.distance_km }}">
                             <div class="log-run-pb-meta">
                                 <span class="log-run-pb-distance">{{ run.distance_display }}</span>
-                                <span class="log-run-pb-date">{{ run.date.split(' ')[0] }}</span>
+                                <span class="log-run-pb-date">{{ run.date|string|truncate(10, True, '') }}</span>
                             </div>
                             <div class="log-run-pb-right">
                                 <span class="log-run-pb-pace">{{ run.pace_display }}</span>
@@ -189,7 +189,7 @@
                             {% if run.notes %}
                             <div class="card-meta"><strong>Notes:</strong> {{ run.notes }}</div>
                             {% endif %}
-                            <div class="card-meta">{{ run.date.split(' ')[0] }}</div>
+                            <div class="card-meta">{{ run.date|string|truncate(10, True, '') }}</div>
                         </div>
                         {% endfor %}
                     </div>

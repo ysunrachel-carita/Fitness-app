@@ -627,6 +627,11 @@
     .desktop-only {
         display: none !important;
     }
+    input[type="date"] {
+        font-size: 14px !important;
+        height: 40px;
+        padding: 8px 12px;
+    }
 }
 
 /* ===== PERSONAL RECORD ===== */

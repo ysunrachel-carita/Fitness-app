@@ -104,10 +104,16 @@
 /* Override global page-wrapper width for this page */
 .log-workout-page-wrapper {
     max-width: 1200px !important;
-    padding: 24px 28px;
+    padding: 24px 20px;
     display: flex;
     flex-direction: column;
     gap: 24px;
+}
+
+@media (max-width: 768px) {
+    .log-workout-page-wrapper {
+        padding: 16px 12px;
+    }
 }
 
 /* Hero sits at the top, full width — no extra styles needed */

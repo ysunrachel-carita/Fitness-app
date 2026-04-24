@@ -68,12 +68,14 @@ def format_set_label(value):
 def format_short_date(value):
     if not value:
         return "-"
+    if isinstance(value, (date, datetime)):
+        return value.strftime("%b %d")
 
     date_value = str(value).split(' ')[0]
 
     try:
         return datetime.strptime(date_value, "%Y-%m-%d").strftime("%b %d")
-    except ValueError:
+    except (ValueError, TypeError):
         return date_value
 
 
@@ -1088,7 +1090,7 @@ def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is not set")
-    conn = psycopg2.connect(database_url)
+    conn = psycopg2.connect(database_url.strip())
     return PgWrapper(conn)
 
 def get_all_exercises():
@@ -1734,8 +1736,8 @@ def get_user(username):
 def create_user(username, password):
     conn = get_db()
     conn.execute(
-        "INSERT INTO users (username, password_hash, created_at) VALUES (?, ?, ?)",
-        (username, generate_password_hash(password), datetime.utcnow().isoformat())
+        "INSERT INTO users (username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?)",
+        (username, generate_password_hash(password), username, datetime.utcnow().isoformat())
     )
     conn.commit()
     conn.close()
