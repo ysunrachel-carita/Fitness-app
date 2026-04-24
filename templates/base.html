@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title or "NEXUS" }}</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Geist:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+
+    <!-- Global CSS -->
+    <link rel="stylesheet" href="/static/variable.css">
+    <link rel="stylesheet" href="/static/base.css">
+    <link rel="stylesheet" href="/static/layout.css">
+    <link rel="stylesheet" href="/static/components.css">
+    <link rel="stylesheet" href="/static/utilities.css">
+    {% block extra_css %}{% endblock %}
+
+</head>
+
+<body>
+
+    <header>
+        <nav class="base-navbar">
+            <a href="/" class="base-logo">NEXUS</a>
+
+            <div class="nav-right">
+                {% if session.user_id %}
+                <!-- Log Dropdown -->
+                <div class="base-dropdown">
+                    <button class="base-dropdown-btn">Log ▼</button>
+                    <div class="base-dropdown-content">
+                        <a href="/log_workout" class="base-dropdown-item">
+                            Log Workout
+                            <span class="base-dropdown-item__sub">(wod, oly complex etc)</span>
+                        </a>
+                        <a href="/lifts" class="base-dropdown-item">
+                            Log Lift
+                            <span class="base-dropdown-item__sub">(strength sessions)</span>
+                        </a>
+                        <a href="/log_run">Log Run</a>
+
+                    </div>
+                </div>
+
+                <a href="/progress">Progress</a>
+                <!-- <a href="/nutrition">Nutrition</a> -->
+
+                <!-- Profile Dropdown -->
+                <div class="base-profile-dropdown">
+                    <button class="base-profile-avatar">
+                        {% if profile_photo %}
+                        <img src="{{ url_for('static', filename='uploads/' + profile_photo) }}"
+                            class="nav-avatar-image">
+                        {% else %}
+                        <span class="nav-avatar-letter">
+                            {{ display_name[0]|upper }}
+                        </span>
+                        {% endif %}
+                    </button>
+
+                    <div class="base-profile-menu">
+                        <div class="base-profile-header">
+                            <div class="base-profile-username">{{ display_name }}</div>
+                            <div class="base-profile-email">@{{ session.username }}</div>
+                        </div>
+
+                        <div class="base-profile-divider"></div>
+
+                        <a href="/profile" class="base-profile-item">Profile</a>
+                        <a href="/logout" class="base-profile-item logout-item">Logout</a>
+                    </div>
+                </div>
+
+                {% else %}
+                <a href="/login">Log in</a>
+                <a href="/register" class="button button-secondary">Sign up</a>
+                {% endif %}
+            </div>
+        </nav>
+    </header>
+
+    <main class="main-content">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- JS -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+
+            const logDropdown = document.querySelector('.base-dropdown');
+            const logMenu = logDropdown?.querySelector('.base-dropdown-content');
+
+            const profileDropdown = document.querySelector('.base-profile-dropdown');
+            const profileMenu = profileDropdown?.querySelector('.base-profile-menu');
+
+            // Toggle log dropdown
+            logDropdown?.querySelector('.base-dropdown-btn')
+                .addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    logMenu.classList.toggle('show');
+                    profileMenu.classList.remove('show');
+                });
+
+            // Toggle profile dropdown
+            profileDropdown?.querySelector('.base-profile-avatar')
+                .addEventListener('click', function (e) {
+                    e.stopPropagation();
+                    profileMenu.classList.toggle('show');
+                    logMenu.classList.remove('show');
+                });
+
+            // Close all on outside click
+            document.addEventListener('click', function () {
+                logMenu.classList.remove('show');
+                profileMenu.classList.remove('show');
+            });
+
+            document.addEventListener('wheel', function (e) {
+                const target = e.target;
+                if (target && target.matches && target.matches('input[type="number"]')) {
+                    target.blur();
+                }
+            }, { passive: true });
+
+        });
+    </script>
+
+</body>
+
+</html>

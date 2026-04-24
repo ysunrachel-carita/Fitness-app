@@ -1,0 +1,408 @@
+/* ========================
+   LOG WORKOUT PAGE
+   Extends log_lifts.css patterns
+   ======================== */
+
+/* ---- Context pill selector ---- */
+.context-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 6px;
+}
+
+.context-pill {
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.25);
+    background: rgba(30, 41, 59, 0.6);
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    user-select: none;
+}
+
+.context-pill:hover {
+    border-color: var(--accent-primary);
+    color: var(--accent-primary);
+}
+
+.context-pill.active {
+    background: var(--accent-primary);
+    border-color: var(--accent-primary);
+    color: #fff;
+}
+
+/* ---- Context time fields ---- */
+.context-time-fields {
+    display: none;
+    margin-top: 12px;
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    background: rgba(15, 23, 42, 0.5);
+    gap: 12px;
+}
+
+.context-time-fields.visible {
+    display: flex;
+    flex-wrap: wrap;
+}
+
+.context-time-fields .form-group {
+    flex: 1;
+    min-width: 120px;
+    margin-bottom: 0;
+}
+
+.log-workout-hero {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 0;
+    padding: 24px 28px;
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.82));
+    box-shadow: var(--shadow-sm);
+    text-align: left;
+}
+
+.log-workout-eyebrow {
+    margin-bottom: 8px;
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--primary-color);
+}
+
+.log-workout-hero-text {
+    max-width: 60ch;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.log-workout-layout {
+    align-items: flex-start;
+    gap: 40px 48px;
+}
+
+/* ========================
+   PAGE LAYOUT
+   ======================== */
+
+/* Override global page-wrapper width for this page */
+.log-workout-page-wrapper {
+    max-width: 1200px !important;
+    padding: 24px 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+/* Hero sits at the top, full width — no extra styles needed */
+
+/* Two columns below hero: small tips left, big form right */
+.log-workout-body-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 28px;
+    align-items: start;
+}
+
+/* Tips card */
+.log-workout-tips {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    padding: 16px 20px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.6), rgba(17, 24, 39, 0.8));
+    position: sticky;
+    top: 24px;
+}
+
+.log-workout-tip-label {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-primary);
+    margin-bottom: 4px;
+}
+
+.log-workout-tip p {
+    margin: 0;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+}
+
+.log-workout-tip {
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.log-workout-tip:first-child {
+    padding-top: 0;
+}
+
+.log-workout-tip:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+/* Form column takes all remaining space */
+.log-workout-form-col {
+    min-width: 0;
+}
+
+@media (max-width: 900px) {
+    .log-workout-body-layout {
+        grid-template-columns: 1fr;
+    }
+    .log-workout-tips {
+        position: static;
+    }
+}
+
+/* Set Group Card */
+.set-group-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.75), rgba(17, 24, 39, 0.75));
+    box-shadow: var(--shadow-sm);
+    margin-bottom: 12px;
+}
+
+.set-group-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border-color);
+    border-top-left-radius: var(--radius-md);
+    border-top-right-radius: var(--radius-md);
+}
+
+.set-group-label {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+.set-group-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.set-group-body {
+    padding: 12px 14px;
+}
+
+/* Component Row */
+.component-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 80px auto;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+    animation: slideDown 0.15s ease-out;
+}
+
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.component-row .form-input {
+    margin-bottom: 0;
+}
+
+/* Recent performance hint */
+.recent-perf {
+    font-size: 12px;
+    color: var(--text-muted);
+    line-height: 1.6;
+    min-height: 0;
+    padding: 0 2px;
+    margin-top: -4px;
+    margin-bottom: 4px;
+    transition: opacity 0.2s ease;
+}
+
+.recent-perf:empty { display: none; }
+
+.recent-perf-line {
+    display: block;
+    font-variant-numeric: tabular-nums;
+}
+
+.recent-perf-none {
+    opacity: 0.45;
+    font-style: italic;
+}
+
+.delete-comp-btn {
+    appearance: none;
+    background: transparent;
+    border: 0;
+    padding: 0;
+    color: var(--text-muted);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    transition: color 0.15s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.delete-comp-btn:hover {
+    color: var(--danger-color);
+}
+
+/* Inline action (matches log_lifts style exactly) */
+.workout-inline-action {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.workout-inline-action:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.workout-inline-action--danger:hover {
+    color: var(--danger-color);
+    text-decoration: underline;
+}
+
+/* Add Group button */
+.add-group-row {
+    margin-top: 4px;
+    margin-bottom: 20px;
+}
+
+/* Repeat + Result footer section */
+.workout-footer-section {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+/* Panel left accent */
+.log-workout-panel--form {
+    position: relative;
+}
+
+.log-workout-panel--form::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--primary-color), #2563eb);
+    border-top-left-radius: var(--radius-lg);
+    border-bottom-left-radius: var(--radius-lg);
+}
+
+/* Label col header row */
+.component-header-row {
+    display: grid;
+    grid-template-columns: 1fr 100px 80px auto;
+    gap: 8px;
+    padding: 0 0 4px 0;
+}
+
+.component-header-row span {
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+
+/* Autocomplete */
+.exercise-autocomplete-wrapper {
+    position: relative;
+}
+
+.exercise-suggestions {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 200;
+    display: none;
+}
+
+.exercise-suggestions .suggestion-item {
+    padding: 10px 14px;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: 14px;
+    transition: background-color 0.1s ease;
+}
+
+.exercise-suggestions .suggestion-item:hover {
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+}
+
+.exercise-suggestions .suggestion-item:last-child {
+    border-bottom: none;
+}
+
+@media (max-width: 1024px) {
+    .log-workout-hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+}
+
+@media (max-width: 768px) {
+    .log-workout-hero {
+        padding: 20px;
+    }
+
+    .component-row {
+        grid-template-columns: 1fr 90px 70px auto;
+    }
+}

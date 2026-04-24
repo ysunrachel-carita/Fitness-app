@@ -1,0 +1,549 @@
+{% extends "base.html" %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/log_lifts.css">
+<link rel="stylesheet" href="/static/pages/log_workout.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper log-workout-page-wrapper">
+
+    <!-- HERO: full-width on top -->
+    <div class="log-workout-hero">
+        <div>
+            <div class="log-workout-eyebrow">Workout Log</div>
+            <h2 class="page-title log-lifts-title log-lifts-title--condensed">Train. Log. Progress.</h2>
+        </div>
+        <a href="{{ url_for('workout_history') }}" class="btn btn--secondary">View History</a>
+    </div>
+
+    <!-- BODY: instructions (small) left, form (large) right -->
+    <div class="log-workout-body-layout">
+
+        <!-- LEFT: tips -->
+        <aside class="log-workout-tips">
+            <div class="log-workout-tip">
+                <div class="log-workout-tip-label">Group</div>
+                <p>A block of exercises. Add a group for each set or circuit round.</p>
+            </div>
+            <div class="log-workout-tip">
+                <div class="log-workout-tip-label">Duplicate</div>
+                <p>Copies an entire group exactly. Use it when the next round changes weights or reps.</p>
+            </div>
+            <div class="log-workout-tip">
+                <div class="log-workout-tip-label">Repeat</div>
+                <p>Build 1 group, set Repeat to your round count. Perfect for EMOMs and identical circuits — logs
+                    automatically.</p>
+            </div>
+        </aside>
+
+        <!-- RIGHT: FORM -->
+        <main class="log-workout-form-col">
+            <div class="card card--stacked log-lifts-panel log-workout-panel--form">
+
+                <h3>New Workout</h3>
+
+                <!-- Autocomplete data -->
+                <div id="exercise-data" data-exercises='{{ exercises | tojson }}' style="display:none;"></div>
+
+                <div class="form-group">
+                    <label class="form-label">Date</label>
+                    <input class="form-input" type="date" id="workout_date" value="{{ today_date }}"
+                        max="{{ today_date }}">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Workout Name <span
+                            style="font-weight:400; opacity:0.5;">(optional)</span></label>
+                    <input class="form-input" type="text" id="workout_name" placeholder="e.g. Bear Complex, 5x5 Squats">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Notes <span
+                            style="font-weight:400; opacity:0.5;">(optional)</span></label>
+                    <textarea class="form-textarea" id="workout_notes" rows="2"
+                        placeholder="How did it feel?"></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Workout Context <span
+                            style="font-weight:400; opacity:0.5;">(optional)</span></label>
+                    <div class="context-pills">
+                        <span class="context-pill" data-context="AMRAP">AMRAP</span>
+                        <span class="context-pill" data-context="EMOM">EMOM</span>
+                        <span class="context-pill" data-context="For Time">For Time</span>
+                        <span class="context-pill" data-context="For Load">For Load</span>
+                        <span class="context-pill" data-context="Other">Other</span>
+                    </div>
+                    <input type="hidden" id="workout_context" value="">
+
+                    <!-- AMRAP / For Time -->
+                    <div class="context-time-fields" id="ctx-time-cap">
+                        <div class="form-group">
+                            <label class="form-label">Time cap (minutes)</label>
+                            <input class="form-input" type="number" id="workout_time_cap" min="1" placeholder="e.g. 12">
+                        </div>
+                    </div>
+
+                    <!-- EMOM -->
+                    <div class="context-time-fields" id="ctx-emom">
+                        <div class="form-group">
+                            <label class="form-label">Every ___ minutes</label>
+                            <input class="form-input" type="number" id="workout_emom_interval" min="1"
+                                placeholder="e.g. 1">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">For ___ minutes</label>
+                            <input class="form-input" type="number" id="workout_emom_duration" min="1"
+                                placeholder="e.g. 10">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GROUPS SECTION -->
+                <div>
+                    <label class="form-label" style="margin-bottom: 10px;">Groups</label>
+                    <div id="groups-container"></div>
+                    <div class="add-group-row">
+                        <button type="button" class="workout-inline-action" id="add-group-btn">+ Add Group</button>
+                    </div>
+                </div>
+
+                <!-- FOOTER FIELDS -->
+                <div class="workout-footer-section">
+                    <div class="form-group">
+                        <label class="form-label">Repeat Entire Workout</label>
+                        <input class="form-input" type="number" id="workout_repeat" value="1" min="1"
+                            style="max-width: 120px;">
+                        <span class="helper-text">Unrolls the groups this many times (for rounds / EMOM cycles)</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Result <span
+                                style="font-weight:400; opacity:0.5;">(optional)</span></label>
+                        <input class="form-input" type="text" id="workout_result"
+                            placeholder="e.g. 30:00, 5 rounds + 3 reps">
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button class="btn btn--primary btn--full" id="submit-btn" type="button">
+                        Save Workout
+                    </button>
+                </div>
+
+            </div>
+        </main>
+
+    </div>
+</div>
+
+<!-- TEMPLATES -->
+<template id="group-template">
+    <div class="set-group-card">
+        <div class="set-group-header">
+            <span class="set-group-label">Group</span>
+            <div class="set-group-actions">
+                <button type="button" class="workout-inline-action duplicate-group-btn">Duplicate</button>
+                <button type="button"
+                    class="workout-inline-action workout-inline-action--danger delete-group-btn">Delete</button>
+            </div>
+        </div>
+        <div class="set-group-body">
+            <div class="component-header-row">
+                <span>Exercise</span>
+                <span>Weight (kg)</span>
+                <span>Reps</span>
+                <span></span>
+            </div>
+            <div class="components-container"></div>
+            <div style="margin-top: 6px; display: flex; align-items: center; gap: 16px; flex-wrap: wrap;">
+                <button type="button" class="workout-inline-action add-component-btn">+ Add Exercise</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <label style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Rest</label>
+                    <input type="number" class="form-input comp-rest-min" placeholder="min" min="0" step="1"
+                        style="width: 60px; font-size: 12px; padding: 4px 8px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">m</span>
+                    <input type="number" class="form-input comp-rest" placeholder="sec" min="0" step="5"
+                        style="width: 60px; font-size: 12px; padding: 4px 8px;">
+                    <span style="font-size: 12px; color: var(--text-muted);">s</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</template>
+
+<template id="component-template">
+    <div class="component-wrapper">
+        <div class="component-row">
+            <div class="exercise-autocomplete-wrapper">
+                <input type="text" class="form-input comp-exercise" placeholder="Exercise" autocomplete="off">
+                <div class="exercise-suggestions"></div>
+            </div>
+            <input type="number" class="form-input comp-weight" placeholder="kg" step="0.5" min="0">
+            <input type="number" class="form-input comp-reps" placeholder="reps" min="0">
+            <button type="button" class="delete-comp-btn" title="Remove">&times;</button>
+        </div>
+        <div class="recent-perf" aria-live="polite"></div>
+    </div>
+</template>
+
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const groupsContainer = document.getElementById('groups-container');
+        const addGroupBtn = document.getElementById('add-group-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        const groupTemplate = document.getElementById('group-template');
+        const compTemplate = document.getElementById('component-template');
+
+        const exerciseDataEl = document.getElementById('exercise-data');
+        let exercises = [];
+        try { exercises = JSON.parse(exerciseDataEl.dataset.exercises) || []; } catch (e) { }
+
+        const perfCache = {};
+        let fetchPerfTimeout = null;
+
+        async function fetchRecentPerf(exerciseName, recentPerfEl) {
+            const name = exerciseName.trim();
+            if (!name) {
+                recentPerfEl.innerHTML = '';
+                return;
+            }
+
+            if (perfCache[name]) {
+                renderPerf(perfCache[name], recentPerfEl);
+                return;
+            }
+
+            try {
+                const res = await fetch(`/exercise_recent_performance?name=${encodeURIComponent(name)}`);
+                const data = await res.json();
+                perfCache[name] = data;
+                renderPerf(data, recentPerfEl);
+            } catch (err) {
+                console.error('Failed to fetch recent performance', err);
+            }
+        }
+
+        function renderPerf(data, el) {
+            if (!data || !data.entries || data.entries.length === 0) {
+                el.innerHTML = '';
+                return;
+            }
+
+            const entriesStr = data.entries.map(e => e.display).join(', ');
+            const dateLabel = data.days_ago_label ? `(${data.days_ago_label})` : '';
+
+            el.innerHTML = `<span class="recent-perf-line"><strong>Last session</strong> ${dateLabel}: ${entriesStr}</span>`;
+        }
+
+        let groupCounter = 0;
+
+        /* ---- Context pill logic ---- */
+        const contextInput = document.getElementById('workout_context');
+        const resultInput = document.getElementById('workout_result');
+        const ctxTimeCap = document.getElementById('ctx-time-cap');
+        const ctxEmom = document.getElementById('ctx-emom');
+
+        const RESULT_PLACEHOLDERS = {
+            'AMRAP': 'e.g. 5 rounds + 8 reps',
+            'EMOM': 'e.g. completed 10 min',
+            'For Time': 'e.g. 8:32',
+            'For Load': 'e.g. 100kg',
+            'Other': 'e.g. your result',
+        };
+
+        function applyContext(ctx) {
+            // Badges
+            ctxTimeCap.classList.remove('visible');
+            ctxEmom.classList.remove('visible');
+            if (ctx === 'AMRAP' || ctx === 'For Time') ctxTimeCap.classList.add('visible');
+            if (ctx === 'EMOM') ctxEmom.classList.add('visible');
+            // Result placeholder
+            if (resultInput) resultInput.placeholder = RESULT_PLACEHOLDERS[ctx] || 'e.g. 30:00, 5 rounds + 3 reps';
+        }
+
+        document.querySelectorAll('.context-pill').forEach(pill => {
+            pill.addEventListener('click', function () {
+                const already = this.classList.contains('active');
+                // Deselect all
+                document.querySelectorAll('.context-pill').forEach(p => p.classList.remove('active'));
+                if (already) {
+                    // Toggle off
+                    contextInput.value = '';
+                    applyContext('');
+                } else {
+                    this.classList.add('active');
+                    contextInput.value = this.dataset.context;
+                    applyContext(this.dataset.context);
+                }
+            });
+        });
+
+        /* ---- Autocomplete ---- */
+        function normalize(t) {
+            return t.toLowerCase().replace(/[-\s]/g, '').replace(/s$/, '');
+        }
+
+        function attachAutocomplete(input, suggestionsEl, recentPerfEl) {
+            input.addEventListener('input', function () {
+                const val = this.value.trim();
+
+                clearTimeout(fetchPerfTimeout);
+                if (val) {
+                    fetchPerfTimeout = setTimeout(() => fetchRecentPerf(val, recentPerfEl), 300);
+                } else {
+                    recentPerfEl.innerHTML = '';
+                }
+
+                if (val.length < 2) { suggestionsEl.style.display = 'none'; return; }
+
+                const normQ = normalize(val);
+                const scored = exercises.map(ex => {
+                    const n = normalize(ex);
+                    let score = 4;
+                    if (n === normQ) score = 0;
+                    else if (n.startsWith(normQ)) score = 1;
+                    else if (n.includes(normQ)) score = 2;
+                    return { ex, score };
+                }).filter(s => s.score < 4).sort((a, b) => a.score - b.score).slice(0, 6);
+
+                if (scored.length) {
+                    suggestionsEl.innerHTML = scored.map(s =>
+                        `<div class="suggestion-item" data-exercise="${s.ex}">${s.ex}</div>`
+                    ).join('');
+                    suggestionsEl.style.display = 'block';
+                } else {
+                    suggestionsEl.style.display = 'none';
+                }
+            });
+
+            suggestionsEl.addEventListener('click', e => {
+                if (e.target.classList.contains('suggestion-item')) {
+                    input.value = e.target.dataset.exercise;
+                    suggestionsEl.style.display = 'none';
+
+                    clearTimeout(fetchPerfTimeout);
+                    fetchRecentPerf(input.value, recentPerfEl);
+
+                    // Move focus to reps field
+                    const row = input.closest('.component-row');
+                    if (row) row.querySelector('.comp-reps')?.focus();
+                }
+            });
+
+            document.addEventListener('click', e => {
+                if (!input.contains(e.target) && !suggestionsEl.contains(e.target)) {
+                    suggestionsEl.style.display = 'none';
+                }
+            });
+        }
+
+        /* ---- Component ---- */
+        function createComponent() {
+            const frag = compTemplate.content.cloneNode(true);
+            const wrapper = frag.querySelector('.component-wrapper');
+            const row = wrapper.querySelector('.component-row');
+            const input = row.querySelector('.comp-exercise');
+            const suggs = row.querySelector('.exercise-suggestions');
+            const recentPerfEl = wrapper.querySelector('.recent-perf');
+
+            attachAutocomplete(input, suggs, recentPerfEl);
+
+            wrapper.querySelector('.delete-comp-btn').addEventListener('click', () => wrapper.remove());
+            return wrapper;
+        }
+
+        /* ---- Group ---- */
+        function createGroup(copyFromGroup) {
+            groupCounter++;
+            const frag = groupTemplate.content.cloneNode(true);
+            const group = frag.querySelector('.set-group-card');
+            const comps = group.querySelector('.components-container');
+
+            group.querySelector('.set-group-label').textContent = `Group ${groupCounter}`;
+
+            if (copyFromGroup) {
+                // Deep-copy component values
+                copyFromGroup.querySelectorAll('.component-wrapper').forEach(srcWrapper => {
+                    const newWrapper = createComponent();
+                    newWrapper.querySelector('.comp-exercise').value = srcWrapper.querySelector('.comp-exercise').value;
+                    newWrapper.querySelector('.comp-weight').value = srcWrapper.querySelector('.comp-weight').value;
+                    newWrapper.querySelector('.comp-reps').value = srcWrapper.querySelector('.comp-reps').value;
+
+                    const exVal = newWrapper.querySelector('.comp-exercise').value;
+                    if (exVal) {
+                        fetchRecentPerf(exVal, newWrapper.querySelector('.recent-perf'));
+                    }
+
+                    comps.appendChild(newWrapper);
+                });
+                // Copy rest
+                const srcRest = copyFromGroup.querySelector('.comp-rest');
+                const dstRest = group.querySelector('.comp-rest');
+                if (srcRest && dstRest) dstRest.value = srcRest.value;
+            } else {
+                comps.appendChild(createComponent());
+            }
+
+            group.querySelector('.add-component-btn').addEventListener('click', () => {
+                comps.appendChild(createComponent());
+            });
+
+            group.querySelector('.delete-group-btn').addEventListener('click', () => {
+                group.remove();
+            });
+
+            group.querySelector('.duplicate-group-btn').addEventListener('click', () => {
+                const newGroup = createGroup(group);
+                group.after(newGroup);
+            });
+
+            return group;
+        }
+
+        // Initial state: 1 empty group
+        groupsContainer.appendChild(createGroup());
+
+        addGroupBtn.addEventListener('click', () => {
+            groupsContainer.appendChild(createGroup());
+        });
+
+        /* ---- Submit ---- */
+        submitBtn.addEventListener('click', async () => {
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Saving…';
+
+            const ctx = document.getElementById('workout_context').value || null;
+
+            const payload = {
+                date: document.getElementById('workout_date').value,
+                name: document.getElementById('workout_name').value.trim(),
+                notes: document.getElementById('workout_notes').value.trim(),
+                result: document.getElementById('workout_result').value.trim(),
+                repeat: parseInt(document.getElementById('workout_repeat').value) || 1,
+                context: ctx,
+                time_cap_minutes: ctx === 'AMRAP' || ctx === 'For Time'
+                    ? (parseInt(document.getElementById('workout_time_cap').value) || null)
+                    : null,
+                emom_interval: ctx === 'EMOM'
+                    ? (parseInt(document.getElementById('workout_emom_interval').value) || null)
+                    : null,
+                emom_duration: ctx === 'EMOM'
+                    ? (parseInt(document.getElementById('workout_emom_duration').value) || null)
+                    : null,
+                set_groups: []
+            };
+            
+            let hasInvalid = false;
+            
+            // Check basic fields
+            if (payload.repeat < 1) hasInvalid = true;
+            if (payload.time_cap_minutes !== null && payload.time_cap_minutes < 0) hasInvalid = true;
+            if (payload.emom_interval !== null && payload.emom_interval < 0) hasInvalid = true;
+            if (payload.emom_duration !== null && payload.emom_duration < 0) hasInvalid = true;
+
+            groupsContainer.querySelectorAll('.set-group-card').forEach(groupNode => {
+                const components = [];
+                groupNode.querySelectorAll('.component-wrapper').forEach(wrapper => {
+                    const ex = wrapper.querySelector('.comp-exercise').value.trim();
+                    const reps = wrapper.querySelector('.comp-reps').value;
+                    const weight = wrapper.querySelector('.comp-weight').value;
+                    if (ex || reps || weight) {
+                        const parsedReps = reps ? parseInt(reps) : null;
+                        const parsedWeight = weight ? parseFloat(weight) : null;
+                        
+                        if ((parsedReps !== null && parsedReps < 0) || (parsedWeight !== null && parsedWeight < 0)) {
+                            hasInvalid = true;
+                        }
+                        
+                        components.push({
+                            exercise: ex || null,
+                            reps: parsedReps,
+                            weight_kg: parsedWeight
+                        });
+                    }
+                });
+                const restMin = groupNode.querySelector('.comp-rest-min');
+                const restSec = groupNode.querySelector('.comp-rest');
+                const minVal = restMin && restMin.value ? parseInt(restMin.value) : 0;
+                const secVal = restSec && restSec.value ? parseInt(restSec.value) : 0;
+                const restVal = (minVal * 60 + secVal) || null;
+                
+                if (minVal < 0 || secVal < 0) {
+                    hasInvalid = true;
+                }
+                
+                payload.set_groups.push({ components, rest_seconds: restVal });
+            });
+
+            if (hasInvalid) {
+                showToast('Values cannot be negative', 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Workout';
+                return;
+            }
+
+            try {
+                const res = await fetch('/workout_sessions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const data = await res.json();
+                if (data.success) {
+                    showToast('Workout logged successfully!', 'success');
+                    // Reset form
+                    document.getElementById('workout_name').value = '';
+                    document.getElementById('workout_notes').value = '';
+                    document.getElementById('workout_result').value = '';
+                    document.getElementById('workout_repeat').value = '1';
+                    // Reset context
+                    document.getElementById('workout_context').value = '';
+                    document.querySelectorAll('.context-pill').forEach(p => p.classList.remove('active'));
+                    document.getElementById('ctx-time-cap').classList.remove('visible');
+                    document.getElementById('ctx-emom').classList.remove('visible');
+                    document.getElementById('workout_time_cap').value = '';
+                    document.getElementById('workout_emom_interval').value = '';
+                    document.getElementById('workout_emom_duration').value = '';
+                    document.getElementById('workout_result').placeholder = 'e.g. 30:00, 5 rounds + 3 reps';
+                    groupsContainer.innerHTML = '';
+                    groupCounter = 0;
+                    groupsContainer.appendChild(createGroup());
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Save Workout';
+                } else {
+                    showToast(data.error || 'Error saving workout', 'error');
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Save Workout';
+                }
+            } catch (err) {
+                showToast('Network error. Please try again.', 'error');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Save Workout';
+            }
+        });
+
+        function showToast(message, type) {
+            const existing = document.querySelector('.toast-feedback');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = `toast-feedback toast--${type}`;
+            
+            let emoji = '';
+            if (type === 'success') emoji = '✅';
+            else if (type === 'error') emoji = '❌';
+            else emoji = 'ℹ️';
+
+            toast.innerHTML = `
+                <div class="toast-primary" style="margin-bottom: 0;">
+                    ${emoji} ${message}
+                </div>
+            `;
+
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+    });
+</script>
+{% endblock %}

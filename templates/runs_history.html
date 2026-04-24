@@ -1,0 +1,361 @@
+{% extends "base.html" %}
+
+{% block title %}Run History{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/history.css">
+<link rel="stylesheet" href="/static/pages/log_run.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="page-content">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="section-header">
+            <h1 class="page-title">Run History</h1>
+            <a href="{{ url_for('log_run') }}" class="btn btn--secondary">Back to Log</a>
+        </div>
+
+        <div class="filter-bar">
+            <select id="filter-range">
+                <option value="" {% if not current_range %}selected{% endif %}>All Time</option>
+                <option value="7" {% if current_range == '7' %}selected{% endif %}>Last 7 Days</option>
+                <option value="30" {% if current_range == '30' %}selected{% endif %}>Last 30 Days</option>
+            </select>
+        </div>
+
+        {% if grouped %}
+            {% for day, runs in grouped.items() %}
+            <div class="history-date-group" data-date="{{ day }}">
+                <div class="history-date">{{ day }}</div>
+
+            {% for run in runs %}
+            <div class="history-row" data-id="{{ run.id }}">
+                <div class="history-row-content">
+                    <div class="log-run-history-stats">
+                        <span class="log-run-history-distance">{{ run.distance_display }}</span>
+                        {% set type_key = run.run_type | lower | replace(' ', '') %}
+                        {% if type_key == 'trackrun' %}
+                            <span class="log-run-type-badge log-run-type-badge--track">Track Run</span>
+                        {% elif type_key == 'treadmill' %}
+                            <span class="log-run-type-badge log-run-type-badge--treadmill">Treadmill</span>
+                        {% else %}
+                            <span class="log-run-type-badge log-run-type-badge--run">Run</span>
+                        {% endif %}
+                        <span class="log-run-history-pace">{{ run.pace_display }}</span>
+                        <span class="log-run-history-duration">{{ run.duration_display }}</span>
+                    </div>
+                    {% if run.notes %}
+                    <div class="card-description" data-role="run-notes">
+                        <strong>Notes:</strong> {{ run.notes }}
+                    </div>
+                    {% endif %}
+                </div>
+
+                <div class="form-actions">
+                    <button type="button"
+                            class="btn btn--primary btn--sm"
+                            data-action="edit"
+                            data-run-id="{{ run.id }}">
+                        Edit
+                    </button>
+                    <button type="button"
+                            class="btn btn--danger btn--sm"
+                            data-action="delete"
+                            data-id="{{ run.id }}">
+                        Delete
+                    </button>
+                </div>
+
+                <div id="edit-form-{{ run.id }}" style="display: none;">
+                    <form action="{{ url_for('edit_run', run_id=run.id) }}" method="POST">
+                        <input type="hidden" name="filter_range" value="{{ current_range }}">
+
+                        <div class="form-group">
+                            <label class="form-label">Distance</label>
+                            <div class="input-row-inline">
+                                <input class="form-input" type="number" step="0.01" min="0" name="distance" value="{{ run.distance_input_value }}" required>
+                                <select class="form-select" name="unit">
+                                    <option value="km" {% if run.unit != 'mi' %}selected{% endif %}>km</option>
+                                    <option value="mi" {% if run.unit == 'mi' %}selected{% endif %}>mi</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Duration</label>
+                            <div class="input-row-inline">
+                                <input class="form-input" type="number" min="0" name="duration_minutes" value="{{ run.duration_minutes_value }}" required>
+                                <span class="input-row-separator">:</span>
+                                <input class="form-input" type="number" min="0" max="59" name="duration_seconds" value="{{ run.duration_seconds_value }}" required>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Run Type</label>
+                            {% set type_key = run.run_type | lower | replace(' ', '') %}
+                            <select class="form-select" name="run_type">
+                                <option value="Run" {% if type_key != 'trackrun' and type_key != 'treadmill' %}selected{% endif %}>Run</option>
+                                <option value="Track Run" {% if type_key == 'trackrun' %}selected{% endif %}>Track Run</option>
+                                <option value="Treadmill" {% if type_key == 'treadmill' %}selected{% endif %}>Treadmill</option>
+                            </select>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Date</label>
+                            <input class="form-input" type="date" name="date" value="{{ run.date.split(' ')[0] }}" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label">Notes (Optional)</label>
+                            <textarea class="form-textarea" name="notes" rows="3">{{ run.notes or '' }}</textarea>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn--primary">Save</button>
+                            <button type="button"
+                                    class="btn btn--secondary"
+                                    data-action="cancel"
+                                    data-run-id="{{ run.id }}">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+
+                <div class="history-date-separator"></div>
+            </div>
+            {% endfor %}
+
+        {% else %}
+        <div class="card">
+            <p>No runs recorded yet. <a href="{{ url_for('log_run') }}">Log your first run</a>.</p>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var rangeSelect = document.getElementById('filter-range');
+    var pageContent = document.querySelector('.page-content');
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    function buildRunBadge(runType) {
+        var typeKey = (runType || 'Run').toLowerCase().replace(/\s/g, '');
+        var typeModifier = typeKey === 'trackrun' ? 'track' : typeKey === 'treadmill' ? 'treadmill' : 'run';
+        var label = escapeHtml(runType || 'Run');
+        return '<span class="log-run-type-badge log-run-type-badge--' + typeModifier + '">' + label + '</span>';
+    }
+
+    function ensureRunGroup(dateStr) {
+        var existing = document.querySelector('.history-date-group[data-date="' + dateStr + '"]');
+        if (existing) return existing;
+
+        var group = document.createElement('div');
+        group.className = 'history-date-group';
+        group.dataset.date = dateStr;
+        group.innerHTML = '<div class="history-date">' + escapeHtml(dateStr) + '</div>';
+
+        var separator = document.createElement('div');
+        separator.className = 'history-date-separator';
+        group.appendChild(separator);
+
+        var groups = Array.from(document.querySelectorAll('.history-date-group'));
+        var insertBefore = groups.find(function (node) {
+            return node.dataset.date < dateStr;
+        });
+
+        if (insertBefore && insertBefore.parentNode) {
+            insertBefore.parentNode.insertBefore(group, insertBefore);
+        } else if (pageContent) {
+            pageContent.appendChild(group);
+        }
+
+        return group;
+    }
+
+    function updateRunRow(row, run) {
+        var stats = row.querySelector('.log-run-history-stats');
+        if (stats) {
+            stats.innerHTML =
+                '<span class="log-run-history-distance">' + escapeHtml(run.distance_display) + '</span>' +
+                buildRunBadge(run.run_type) +
+                '<span class="log-run-history-pace">' + escapeHtml(run.pace_display) + '</span>' +
+                '<span class="log-run-history-duration">' + escapeHtml(run.duration_display) + '</span>';
+        }
+
+        var notes = row.querySelector('[data-role="run-notes"]');
+        if (run.notes) {
+            var noteHtml = '<strong>Notes:</strong> ' + escapeHtml(run.notes);
+            if (notes) {
+                notes.innerHTML = noteHtml;
+            } else {
+                notes = document.createElement('div');
+                notes.className = 'card-description';
+                notes.setAttribute('data-role', 'run-notes');
+                notes.innerHTML = noteHtml;
+                var rowContent = row.querySelector('.history-row-content');
+                if (rowContent) rowContent.appendChild(notes);
+            }
+        } else if (notes) {
+            notes.remove();
+        }
+
+        var form = row.querySelector('form');
+        if (form) {
+            var distanceInput = form.querySelector('input[name="distance"]');
+            var unitSelect = form.querySelector('select[name="unit"]');
+            var minInput = form.querySelector('input[name="duration_minutes"]');
+            var secInput = form.querySelector('input[name="duration_seconds"]');
+            var typeSelect = form.querySelector('select[name="run_type"]');
+            var dateInput = form.querySelector('input[name="date"]');
+            var notesInput = form.querySelector('textarea[name="notes"]');
+
+            if (distanceInput) distanceInput.value = run.distance_input_value;
+            if (unitSelect) unitSelect.value = run.unit || 'km';
+            if (minInput) minInput.value = run.duration_minutes_value;
+            if (secInput) secInput.value = run.duration_seconds_value;
+            if (typeSelect) typeSelect.value = run.run_type || 'Run';
+            if (dateInput) dateInput.value = (run.date || '').split(' ')[0];
+            if (notesInput) notesInput.value = run.notes || '';
+        }
+    }
+
+    function showFlash(message) {
+        if (!pageContent) return;
+        var msg = document.createElement('div');
+        msg.className = 'flash success';
+        msg.textContent = message;
+        pageContent.prepend(msg);
+        setTimeout(function () { msg.remove(); }, 3000);
+    }
+
+    rangeSelect.addEventListener('change', function () {
+        var params = new URLSearchParams();
+        if (rangeSelect.value) params.set('range', rangeSelect.value);
+        var qs = params.toString();
+        window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+    });
+
+    document.querySelectorAll('[data-action="edit"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var id = this.dataset.runId;
+            var form = document.getElementById('edit-form-' + id);
+            if (form) form.style.display = 'block';
+        });
+    });
+
+    document.querySelectorAll('[data-action="cancel"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var id = this.dataset.runId;
+            var form = document.getElementById('edit-form-' + id);
+            if (form) form.style.display = 'none';
+        });
+    });
+
+    document.querySelectorAll('div[id^="edit-form-"] form').forEach(function (form) {
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+
+            var row = form.closest('.history-row');
+            var group = row ? row.closest('.history-date-group') : null;
+            var originalDate = group ? group.dataset.date : '';
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data.success) {
+                    alert(data.error || 'Save failed');
+                    return;
+                }
+
+                var run = data.run;
+                var newDate = (run.date || '').split(' ')[0];
+
+                if (row) {
+                    updateRunRow(row, run);
+                }
+
+                if (row && group && newDate && newDate !== originalDate) {
+                    row.remove();
+                    if (!group.querySelector('.history-row')) {
+                        group.remove();
+                    }
+
+                    var targetGroup = ensureRunGroup(newDate);
+                    var separator = targetGroup.querySelector('.history-date-separator');
+                    if (separator) {
+                        targetGroup.insertBefore(row, separator);
+                    } else {
+                        targetGroup.appendChild(row);
+                    }
+                    targetGroup.dataset.date = newDate;
+                }
+
+                var editForm = row ? document.getElementById('edit-form-' + run.id) : null;
+                if (editForm) editForm.style.display = 'none';
+                showFlash('Run updated');
+            })
+            .catch(function () {
+                alert('Error updating run');
+            });
+        });
+    });
+
+    document.querySelectorAll('[data-action="delete"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            const id = this.dataset.id;
+            const row = this.closest('.history-row');
+            const group = row ? row.closest('.history-date-group') : null;
+            if (!confirm('Delete this run?')) return;
+
+            fetch('/delete_run/' + id, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    row.remove();
+                    if (group && !group.querySelector('.history-row')) {
+                        group.remove();
+                    }
+                    const msg = document.createElement('div');
+                    msg.className = 'flash success';
+                    msg.textContent = 'Run deleted';
+                    document.querySelector('.page-content').prepend(msg);
+                    setTimeout(() => msg.remove(), 3000);
+                } else {
+                    alert(data.error || 'Delete failed');
+                }
+            })
+            .catch(() => alert('Error deleting run'));
+        });
+    });
+});
+</script>
+{% endblock %}

@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}Progress{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/index.css">
+<link rel="stylesheet" href="/static/pages/progress.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="page-content">
+
+        <div class="section-header">
+            <h1 class="page-title">Strength Progress</h1>
+        </div>
+
+        {% if exercise_insights %}
+
+        {% set rm_primary = selected_exercise.rm_profile[0] if selected_exercise and selected_exercise.rm_profile else none %}
+        {% set rm_secondary = selected_exercise.rm_profile[1:] if selected_exercise and selected_exercise.rm_profile else [] %}
+
+        <div class="progress-primary-section">
+            <div class="progress-exercise-selector">
+                <div class="preview-dropdown progress-dropdown progress-dropdown--section">
+                    <button class="preview-dropdown-btn" type="button" id="progress-dropdown-btn">
+                        {{ selected_exercise.exercise_label if selected_exercise else 'All exercises' }} ▾
+                    </button>
+
+                    <div class="preview-dropdown-menu" id="progress-dropdown-menu">
+                        <a href="{{ url_for('progress') }}" data-exercise=""{% if not selected_exercise_name %} class="is-active"{% endif %}>
+                            All exercises
+                        </a>
+                        {% for exercise in exercise_insights %}
+                        <a href="{{ url_for('progress', exercise=exercise.exercise) }}" data-exercise="{{ exercise.exercise }}"{% if exercise.exercise == selected_exercise_name %} class="is-active"{% endif %}>
+                            {{ exercise.exercise.title() }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <p class="progress-exercise-prompt" id="progress-exercise-prompt"{% if selected_exercise %} hidden{% endif %}>Select an exercise to see strength progress</p>
+            </div>
+
+            <div class="card card--stacked progress-primary-card" id="progress-exercise-card"{% if not selected_exercise %} hidden{% endif %}>
+                <div class="card-item progress-exercise-empty-state" id="progress-exercise-empty-state" hidden>
+                    <p class="progress-empty-message" aria-hidden="true"></p>
+                </div>
+
+                <div id="progress-exercise-content"{% if not selected_exercise %} hidden{% endif %}>
+                    <div class="card-item progress-primary-hero">
+                        <div class="progress-rm-primary progress-rm-entry progress-rm-entry--primary {% if rm_primary %}progress-rm-entry--{{ rm_primary.kind }}{% endif %}" id="progress-rm-primary">
+                            <div class="progress-rm-entry-top">
+                                <div class="progress-rm-entry-label" id="progress-rm-primary-label">1RM</div>
+                                <div class="progress-rm-entry-kind" id="progress-rm-primary-kind">{{ rm_primary.kind|title if rm_primary else '-' }}</div>
+                            </div>
+                            <div class="progress-rm-entry-value progress-rm-entry-value--primary" id="progress-rm-primary-value">{{ rm_primary.display if rm_primary else '-' }}</div>
+                            <div class="progress-rm-entry-date" id="progress-rm-primary-date">{{ rm_primary.date_label if rm_primary else '-' }}</div>
+                        </div>
+                    </div>
+
+                    <div class="card-item progress-primary-chart">
+                        <div class="progress-chart-layout">
+                            <div class="progress-chart-axis progress-chart-axis--y" id="progress-hero-y-axis"></div>
+
+                            <div class="progress-chart-main">
+                                <div class="preview-line-chart progress-hero-chart {% if selected_exercise and selected_exercise.locked %}progress-hero-chart--locked{% endif %}" id="progress-hero-chart" data-exercise="{{ selected_exercise.exercise if selected_exercise else '' }}" data-chart-values='{{ (selected_exercise.chart_values if selected_exercise else [])|tojson }}' data-chart-dates='{{ (selected_exercise.chart_dates if selected_exercise else [])|tojson }}'>
+                                    <svg viewBox="0 0 300 120" class="chart-svg">
+                                        <line class="chart-axis-line chart-axis-line--x" x1="0" y1="110" x2="300" y2="110" stroke="#444" stroke-width="1"/>
+                                        <line class="chart-axis-line chart-axis-line--y" x1="0" y1="10" x2="0" y2="110" stroke="#444" stroke-width="1"/>
+
+                                        <line x1="60" y1="10" x2="60" y2="110" stroke="#333" stroke-width="0.5" opacity="0.3"/>
+                                        <line x1="120" y1="10" x2="120" y2="110" stroke="#333" stroke-width="0.5" opacity="0.3"/>
+                                        <line x1="180" y1="10" x2="180" y2="110" stroke="#333" stroke-width="0.5" opacity="0.3"/>
+                                        <line x1="240" y1="10" x2="240" y2="110" stroke="#333" stroke-width="0.5" opacity="0.3"/>
+
+                                        <path class="chart-line"></path>
+                                        <g class="chart-dots"></g>
+                                    </svg>
+
+                                    <div class="progress-hero-overlay" id="progress-hero-overlay"{% if not selected_exercise or not selected_exercise.locked %} hidden{% endif %}>
+                                        <div class="progress-hero-overlay__eyebrow">Chart not ready</div>
+                                        <div class="progress-hero-overlay__title" id="progress-hero-overlay-title">Log {{ selected_exercise.sessions_needed if selected_exercise else 0 }} more session{{ 's' if selected_exercise and selected_exercise.sessions_needed != 1 else '' }} to unlock performance insights</div>
+                                        <p class="progress-hero-overlay__text" id="progress-hero-overlay-message"{% if not selected_exercise or selected_exercise.locked %} hidden{% endif %}>{{ selected_exercise.trend.message if selected_exercise else '' }}</p>
+                                    </div>
+                                </div>
+
+                                <div class="progress-chart-axis progress-chart-axis--x" id="progress-hero-x-axis"></div>
+                            </div>
+                        </div>
+
+                        <div class="progress-insight-message{% if selected_exercise and selected_exercise.trend.emoji == '📈' %} progress-insight-message--positive{% elif selected_exercise and selected_exercise.trend.emoji == '📉' %} progress-insight-message--negative{% elif selected_exercise and selected_exercise.trend.emoji == '✨' %} progress-insight-message--steady{% elif selected_exercise and selected_exercise.trend.emoji == '🔒' %} progress-insight-message--locked{% endif %}" id="progress-trend-message">{{ selected_exercise.trend.message if selected_exercise else '' }}</div>
+                    </div>
+
+                    <div class="card-item progress-primary-stats">
+                        <div class="progress-stats-grid progress-stats-grid--primary">
+                            <div class="progress-stat">
+                                <div class="progress-stat-label">Sessions</div>
+                                <div class="progress-stat-value" id="progress-sessions-value">{{ selected_exercise.sessions_count if selected_exercise else '-' }}</div>
+                                <div class="progress-stat-meta">All-time logs</div>
+                            </div>
+
+                            <div class="progress-stat progress-stat--last-workout">
+                                <div class="progress-stat-label">Last workout</div>
+                                <div class="progress-stat-value" id="progress-last-workout-value">{{ selected_exercise.current_lift.summary_label if selected_exercise else '-' }}</div>
+                                <div class="progress-stat-meta" id="progress-last-workout-meta">{{ selected_exercise.current_lift.date_label if selected_exercise else '-' }}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="progress-secondary-section">
+
+            <div class="section-header progress-section-header">
+                <h2>Strength Breakdown</h2>
+            </div>
+
+            <p class="progress-rm-subtitle">2RM to 5RM based on recent training</p>
+
+            <div class="card card--stacked progress-rm-card progress-rm-card--secondary">
+
+                <div class="progress-rm-grid" id="progress-rm-grid"{% if not rm_secondary %} hidden{% endif %}>
+                    {% for item in rm_secondary %}
+                    <div class="progress-rm-entry progress-rm-entry--{{ item.kind }}">
+                        <div class="progress-rm-entry-top">
+                            <div class="progress-rm-entry-label{% if item.rm == 1 %} progress-rm-entry-label--primary{% endif %}">{{ item.rm }}RM</div>
+                            <div class="progress-rm-entry-kind">{{ item.kind|title }}</div>
+                        </div>
+                        <div class="progress-rm-entry-value">{{ item.display }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="progress-rm-empty" id="progress-rm-empty"{% if rm_secondary %} hidden{% endif %}>No additional rep-max data yet.</div>
+            </div>
+
+            <div class="section-header progress-section-header">
+                <h2>Personal Records</h2>
+            </div>
+
+            {% if pr_gallery and pr_gallery.entries %}
+            <div class="card card--stacked progress-pr-card">
+                <div class="progress-pr-highlights">
+                    {% for item in pr_gallery.highlights %}
+                    <div class="progress-pr-highlight">
+                        <div class="progress-pr-highlight-label">{{ item.label }}</div>
+                        <div class="progress-pr-highlight-value">{{ item.value }}</div>
+                        <div class="progress-pr-highlight-detail">{{ item.detail }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <div class="progress-pr-grid">
+                    {% for record in pr_gallery.entries %}
+                    <div class="pr-card progress-pr-entry{% if record.exercise == pr_gallery.heaviest_pr_exercise %} pr-highlight{% endif %}">
+                        <span class="pr-badge">PR</span>
+                        <h4>{{ record.exercise_label }}</h4>
+                        <div class="pr-value">{{ record.weight_display }}</div>
+                        <div class="card-description">
+                            {{ record.reps }} {{ record.reps|format_rep_label }}{% if record.sets %} • {{ record.sets }} {{ record.sets|format_set_label }}{% endif %}
+                        </div>
+                        <div class="card-meta">{{ record.date_label }}</div>
+                        {% if record.notes %}
+                        <div class="card-meta">{{ record.notes }}</div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        {% else %}
+
+        <div class="card progress-empty-state">
+            <p class="progress-empty-message">Log your first lift to unlock strength progress and personal records.</p>
+            <a href="{{ url_for('log_lifts') }}" class="btn btn--primary">Log Your First Lift</a>
+        </div>
+
+        {% endif %}
+
+    </div>
+</div>
+
+{% if exercise_insights %}
+<script id="progress-page-data" type="application/json">{{ progress_page_data|tojson }}</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+
+    const progressData = JSON.parse(document.getElementById('progress-page-data').textContent);
+    const dropdownBtn = document.getElementById('progress-dropdown-btn');
+    const dropdownMenu = document.getElementById('progress-dropdown-menu');
+    const chart = document.getElementById('progress-hero-chart');
+    const line = chart?.querySelector('.chart-line');
+    const dots = chart?.querySelector('.chart-dots');
+    const heroYAxis = document.getElementById('progress-hero-y-axis');
+    const heroXAxis = document.getElementById('progress-hero-x-axis');
+    const exerciseContent = document.getElementById('progress-exercise-content');
+    const exerciseCard = document.getElementById('progress-exercise-card');
+    const exerciseEmptyState = document.getElementById('progress-exercise-empty-state');
+    const exercisePrompt = document.getElementById('progress-exercise-prompt');
+    const overlay = document.getElementById('progress-hero-overlay');
+    const overlayTitle = document.getElementById('progress-hero-overlay-title');
+    const overlayMessage = document.getElementById('progress-hero-overlay-message');
+    const sessionsValue = document.getElementById('progress-sessions-value');
+    const lastWorkoutValue = document.getElementById('progress-last-workout-value');
+    const lastWorkoutMeta = document.getElementById('progress-last-workout-meta');
+    const trendMessage = document.getElementById('progress-trend-message');
+    const rmPrimary = document.getElementById('progress-rm-primary');
+    const rmPrimaryLabel = document.getElementById('progress-rm-primary-label');
+    const rmPrimaryKind = document.getElementById('progress-rm-primary-kind');
+    const rmPrimaryValue = document.getElementById('progress-rm-primary-value');
+    const rmPrimaryDate = document.getElementById('progress-rm-primary-date');
+    const rmGrid = document.getElementById('progress-rm-grid');
+    const rmEmpty = document.getElementById('progress-rm-empty');
+
+    function formatAxisWeight(value) {
+        if (value === null || value === undefined || Number.isNaN(value)) {
+            return '-';
+        }
+
+        return Number.isInteger(value) ? `${value}` : value.toFixed(1);
+    }
+
+    const chartInsets = {
+        left: 24,
+        right: 24,
+        top: 16,
+        bottom: 18,
+    };
+
+    function renderAxes(values, dates, yAxisEl, xAxisEl, chartEl) {
+        if (!yAxisEl || !xAxisEl) return;
+
+        const samples = Array.isArray(values) ? values.filter(function(value) {
+            return value !== null && value !== undefined && !Number.isNaN(value);
+        }) : [];
+        const labels = Array.isArray(dates) ? dates.filter(Boolean) : [];
+        const svg = chartEl?.querySelector('svg');
+        const renderedHeight = chartEl?.getBoundingClientRect().height || chartEl?.clientHeight || 220;
+        const viewBoxHeight = svg?.viewBox?.baseVal?.height || 120;
+        const scale = viewBoxHeight ? renderedHeight / viewBoxHeight : 1;
+        const topPad = chartInsets.top;
+        const bottomPad = chartInsets.bottom;
+        const usableHeight = Math.max(1, viewBoxHeight - topPad - bottomPad);
+
+        if (!samples.length) {
+            yAxisEl.innerHTML = '';
+            xAxisEl.innerHTML = '';
+            return;
+        }
+
+        const min = Math.min(...samples);
+        const max = Math.max(...samples);
+        const mid = min === max ? max : (min + max) / 2;
+        const yPositions = [
+            topPad,
+            topPad + usableHeight / 2,
+            topPad + usableHeight,
+        ].map(function(position) {
+            return position * scale;
+        });
+
+        yAxisEl.style.minHeight = `${renderedHeight}px`;
+        yAxisEl.innerHTML = `
+            <span class="progress-chart-axis__label" style="top: ${yPositions[0]}px">${formatAxisWeight(max)}kg</span>
+            <span class="progress-chart-axis__label" style="top: ${yPositions[1]}px">${formatAxisWeight(mid)}kg</span>
+            <span class="progress-chart-axis__label" style="top: ${yPositions[2]}px">${formatAxisWeight(min)}kg</span>
+        `;
+
+        let xLabels = [];
+        if (!labels.length) {
+            xLabels = ['-', '-', '-'];
+        } else if (labels.length === 1) {
+            xLabels = [labels[0]];
+        } else if (labels.length === 2) {
+            xLabels = [labels[0], labels[1]];
+        } else if (labels.length === 3) {
+            xLabels = [labels[0], labels[1], labels[2]];
+        } else {
+            const middleIndex = Math.floor(labels.length / 2);
+            xLabels = [labels[0], labels[middleIndex], labels[labels.length - 1]];
+        }
+
+        xAxisEl.style.gridTemplateColumns = `repeat(${xLabels.length}, minmax(0, 1fr))`;
+        xAxisEl.innerHTML = xLabels.map(function(label) {
+            return `<span class="progress-chart-axis__label">${label}</span>`;
+        }).join('');
+    }
+
+    function renderEmptyState() {
+        if (dropdownBtn) {
+            dropdownBtn.textContent = 'All exercises ▾';
+        }
+
+        if (exerciseContent) {
+            exerciseContent.hidden = true;
+        }
+
+        if (exerciseCard) {
+            exerciseCard.hidden = true;
+        }
+
+        if (exerciseEmptyState) {
+            exerciseEmptyState.hidden = true;
+        }
+
+        if (exercisePrompt) {
+            exercisePrompt.hidden = false;
+        }
+
+        if (heroYAxis) heroYAxis.innerHTML = '';
+        if (heroXAxis) heroXAxis.innerHTML = '';
+        if (line) line.setAttribute('d', '');
+        if (dots) dots.innerHTML = '';
+
+        if (overlay) overlay.hidden = true;
+        if (overlayMessage) overlayMessage.hidden = true;
+        if (chart) chart.classList.remove('progress-hero-chart--locked');
+        if (chart) {
+            chart.dataset.exercise = '';
+            chart.dataset.chartValues = '[]';
+            chart.dataset.chartDates = '[]';
+        }
+
+        if (sessionsValue) sessionsValue.textContent = '-';
+        if (lastWorkoutValue) lastWorkoutValue.textContent = '-';
+        if (lastWorkoutMeta) lastWorkoutMeta.textContent = '-';
+        if (trendMessage) trendMessage.textContent = '';
+        if (rmPrimaryLabel) rmPrimaryLabel.textContent = '1RM';
+        if (rmPrimaryKind) rmPrimaryKind.textContent = '-';
+        if (rmPrimaryValue) rmPrimaryValue.textContent = '-';
+        if (rmPrimaryDate) rmPrimaryDate.textContent = '-';
+        if (rmPrimary) {
+            rmPrimary.classList.remove('progress-rm-entry--actual', 'progress-rm-entry--estimated');
+        }
+        if (rmGrid) {
+            rmGrid.innerHTML = '';
+            rmGrid.hidden = true;
+        }
+        if (rmEmpty) {
+            rmEmpty.hidden = false;
+        }
+
+        setActiveDropdown('');
+    }
+
+    function drawChart(values, lineEl, dotsEl) {
+        if (!lineEl || !dotsEl) return;
+
+        const samples = Array.isArray(values) ? values.filter(function(value) {
+            return value !== null && value !== undefined && !Number.isNaN(value);
+        }) : [];
+        dotsEl.innerHTML = '';
+
+        const svg = lineEl.ownerSVGElement;
+        const viewBox = svg?.viewBox?.baseVal;
+        const width = viewBox?.width || 300;
+        const height = viewBox?.height || 120;
+        const leftPad = chartInsets.left;
+        const rightPad = chartInsets.right;
+        const topPad = chartInsets.top;
+        const bottomPad = chartInsets.bottom;
+        const usableWidth = Math.max(1, width - leftPad - rightPad);
+        const usableHeight = Math.max(1, height - topPad - bottomPad);
+
+        lineEl.style.strokeDasharray = '';
+        lineEl.style.strokeDashoffset = '';
+
+        if (!samples.length) {
+            lineEl.setAttribute('d', '');
+            return;
+        }
+
+        const centerY = topPad + usableHeight / 2;
+
+        if (samples.length === 1) {
+            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            dot.setAttribute('cx', width / 2);
+            dot.setAttribute('cy', centerY);
+            dot.setAttribute('r', '4');
+            dot.classList.add('chart-dot');
+            dotsEl.appendChild(dot);
+            lineEl.setAttribute('d', `M ${leftPad} ${centerY} L ${width - rightPad} ${centerY}`);
+            return;
+        }
+
+        const min = Math.min(...samples);
+        const max = Math.max(...samples);
+        const range = max - min;
+        const step = usableWidth / (samples.length - 1);
+        let path = '';
+
+        samples.forEach(function(value, index) {
+            const x = leftPad + index * step;
+            const y = range === 0
+                ? centerY
+                : topPad + (1 - ((value - min) / range)) * usableHeight;
+
+            path += (index === 0 ? 'M' : 'L') + `${x},${y} `;
+
+            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            dot.setAttribute('cx', x);
+            dot.setAttribute('cy', y);
+            dot.setAttribute('r', '3');
+            dot.classList.add('chart-dot');
+            dotsEl.appendChild(dot);
+        });
+
+        lineEl.setAttribute('d', path.trim());
+
+        const lineLength = lineEl.getTotalLength ? lineEl.getTotalLength() : null;
+        if (lineLength) {
+            lineEl.style.strokeDasharray = `${lineLength}`;
+            lineEl.style.strokeDashoffset = `${lineLength}`;
+        }
+    }
+
+    function renderRmProfile(rmProfile) {
+        if (!rmPrimary || !rmGrid || !rmEmpty || !rmPrimaryKind || !rmPrimaryValue || !rmPrimaryDate) return;
+
+        if (!Array.isArray(rmProfile) || !rmProfile.length) {
+            rmPrimaryKind.textContent = '-';
+            rmPrimaryValue.textContent = '-';
+            rmPrimaryDate.textContent = '-';
+            rmPrimary.classList.remove('progress-rm-entry--actual', 'progress-rm-entry--estimated');
+            rmGrid.hidden = true;
+            rmGrid.innerHTML = '';
+            rmEmpty.hidden = false;
+            return;
+        }
+
+        const [primary, ...secondary] = rmProfile;
+
+        rmPrimaryKind.textContent = primary.kind.charAt(0).toUpperCase() + primary.kind.slice(1);
+        rmPrimaryValue.textContent = primary.display;
+        rmPrimaryDate.textContent = primary.date_label;
+        rmPrimary.classList.toggle('progress-rm-entry--actual', primary.kind === 'actual');
+        rmPrimary.classList.toggle('progress-rm-entry--estimated', primary.kind === 'estimated');
+
+        if (secondary.length) {
+            rmGrid.hidden = false;
+            rmEmpty.hidden = true;
+        } else {
+            rmGrid.hidden = true;
+            rmEmpty.hidden = false;
+        }
+
+        rmGrid.innerHTML = secondary.map(function(item) {
+            return `
+                <div class="progress-rm-entry progress-rm-entry--${item.kind}">
+                    <div class="progress-rm-entry-top">
+                        <div class="progress-rm-entry-label">${item.rm}RM</div>
+                        <div class="progress-rm-entry-kind">${item.kind.charAt(0).toUpperCase() + item.kind.slice(1)}</div>
+                    </div>
+                    <div class="progress-rm-entry-value">${item.display}</div>
+                </div>
+            `;
+        }).join('');
+    }
+
+    function setActiveDropdown(exerciseKey) {
+        document.querySelectorAll('#progress-dropdown-menu a').forEach(function(link) {
+            link.classList.toggle('is-active', link.dataset.exercise === exerciseKey);
+        });
+    }
+
+    function renderExercise(exerciseKey) {
+        if (!exerciseKey) {
+            renderEmptyState();
+            return;
+        }
+
+        const exercise = progressData.exercises[exerciseKey];
+
+        if (!exercise) {
+            renderEmptyState();
+            return;
+        }
+
+        if (exerciseContent) {
+            exerciseContent.hidden = false;
+        }
+
+        if (exerciseCard) {
+            exerciseCard.hidden = false;
+        }
+
+        if (exerciseEmptyState) {
+            exerciseEmptyState.hidden = true;
+        }
+
+        if (exercisePrompt) {
+            exercisePrompt.hidden = true;
+        }
+
+        dropdownBtn.textContent = `${exercise.exercise_label} ▾`;
+        sessionsValue.textContent = exercise.sessions_count;
+        lastWorkoutValue.textContent = exercise.current_lift.weight_display;
+        lastWorkoutMeta.textContent = exercise.current_lift.date_label;
+        trendMessage.textContent = exercise.trend.message;
+        if (overlayTitle) {
+            overlayTitle.textContent = `Log ${exercise.sessions_needed} more session${exercise.sessions_needed === 1 ? '' : 's'} to unlock performance insights`;
+        }
+        overlayMessage.hidden = exercise.locked;
+        overlayMessage.textContent = exercise.trend.message;
+        overlay.hidden = !exercise.locked;
+        chart.classList.toggle('progress-hero-chart--locked', exercise.locked);
+        chart.dataset.exercise = exercise.exercise;
+        chart.dataset.chartValues = JSON.stringify(exercise.chart_values);
+        chart.dataset.chartDates = JSON.stringify(exercise.chart_dates);
+
+        drawChart(exercise.chart_values, line, dots);
+        if (line) {
+            const lineLength = line.getTotalLength ? line.getTotalLength() : null;
+            if (lineLength) {
+                line.style.strokeDasharray = `${lineLength}`;
+                line.style.strokeDashoffset = `${lineLength}`;
+                requestAnimationFrame(function() {
+                    line.style.strokeDashoffset = '0';
+                });
+            }
+        }
+        renderAxes(exercise.chart_values, exercise.chart_dates, heroYAxis, heroXAxis, chart);
+        renderRmProfile(exercise.rm_profile);
+        setActiveDropdown(exerciseKey);
+    }
+
+    // Initial render
+    renderExercise(progressData.selectedExercise);
+
+    // Dropdown toggle
+    dropdownBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+    });
+
+    document.addEventListener('click', function() {
+        dropdownMenu.classList.remove('show');
+    });
+
+    // Dropdown selection
+    document.querySelectorAll('#progress-dropdown-menu a').forEach(function(link) {
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            history.pushState({}, '', link.href);
+            renderExercise(link.dataset.exercise);
+            dropdownMenu.classList.remove('show');
+        });
+    });
+
+    window.addEventListener('popstate', function() {
+        const params = new URLSearchParams(window.location.search);
+        const exercise = params.get('exercise');
+        renderExercise(exercise);
+    });
+
+    // Animate chart on scroll
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('chart-animate');
+            } else {
+                entry.target.classList.remove('chart-animate');
+            }
+        });
+    }, {
+        threshold: 0.4
+    });
+
+    observer.observe(chart);
+
+});
+</script>
+{% endif %}
+
+{% endblock %}

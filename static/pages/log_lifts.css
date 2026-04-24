@@ -1,0 +1,383 @@
+/* Set row: weight + reps inputs should be visually separate, not fused */
+[data-set-row] .input-with-unit {
+    gap: 8px;
+}
+
+[data-set-row] .input-with-unit .form-input {
+    border-radius: var(--radius-sm);
+}
+
+[data-set-row] .input-with-unit .form-input:first-child {
+    flex: 2;
+}
+
+[data-set-row] .input-with-unit .form-input:nth-child(2) {
+    flex: 1;
+}
+
+.lift-feedback {
+    margin-top: 16px;
+    padding: 12px 16px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
+.log-lifts-hero {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 24px;
+    padding: 24px 28px;
+    border: 1px solid rgba(59, 130, 246, 0.18);
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(15, 23, 42, 0.82));
+    box-shadow: var(--shadow-sm);
+}
+
+.log-lifts-eyebrow {
+    margin-bottom: 8px;
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--accent-primary);
+}
+
+.log-lifts-title {
+    margin-bottom: 10px;
+    line-height: 1.02;
+}
+
+.log-lifts-title--condensed {
+    font-family: var(--font-display);
+    font-weight: 700;
+    text-transform: uppercase;
+    line-height: 0.9;
+    letter-spacing: 0.05em;
+}
+
+.log-lifts-hero-text {
+    max-width: 60ch;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 15px;
+    line-height: 1.55;
+}
+
+.log-lifts-hero-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(92px, 1fr));
+    gap: 12px;
+    min-width: min(100%, 360px);
+}
+
+.log-lifts-stat {
+    padding: 14px 16px;
+    text-align: center;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.log-lifts-stat span {
+    display: block;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.log-lifts-stat small {
+    font-family: var(--font-body);
+    display: block;
+    margin-top: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--text-muted);
+}
+
+.log-lifts-layout {
+    align-items: flex-start;
+    gap: 40px 48px;
+}
+
+.log-lifts-panel .form-label {
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 400;
+    opacity: 0.5;
+    letter-spacing: 0.02em;
+    text-transform: none;
+}
+
+.log-lifts-panel .form-input,
+.log-lifts-panel .form-select,
+.log-lifts-panel .form-textarea {
+    font-family: var(--font-body);
+    font-weight: 500;
+}
+
+.log-lifts-panel .form-input::placeholder,
+.log-lifts-panel .form-textarea::placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+    font-weight: 400;
+}
+
+.log-lifts-panel .form-input::-webkit-input-placeholder,
+.log-lifts-panel .form-textarea::-webkit-input-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+    font-weight: 400;
+}
+
+.log-lifts-panel .form-input::-moz-placeholder,
+.log-lifts-panel .form-textarea::-moz-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+    font-weight: 400;
+}
+
+.log-lifts-panel .form-input::-ms-input-placeholder,
+.log-lifts-panel .form-textarea::-ms-input-placeholder {
+    color: var(--text-muted);
+    opacity: 1;
+    font-weight: 400;
+}
+
+.log-lifts-inline-action {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1;
+    color: var(--text-secondary);
+    cursor: pointer;
+    text-decoration: none;
+    transition: color 0.15s ease, opacity 0.15s ease;
+}
+
+.log-lifts-inline-action:hover {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.log-lifts-inline-action:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+.log-lifts-inline-action--add {
+    margin-top: 2px;
+}
+
+.log-lifts-inline-action--remove {
+    white-space: nowrap;
+}
+
+.log-lifts-panel {
+    position: relative;
+    overflow: hidden;
+}
+
+.log-lifts-panel--form::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 4px;
+    height: 100%;
+    background: linear-gradient(180deg, var(--primary-color), var(--accent-primary));
+}
+
+.log-lifts-panel--data {
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.94), rgba(15, 23, 42, 0.86));
+}
+
+.log-lifts-panel--data h3 {
+    margin-bottom: 12px;
+}
+
+.log-lifts-panel--empty {
+    min-height: 220px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    gap: 8px;
+    border-style: dashed;
+    background: linear-gradient(180deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.75));
+}
+
+.log-lifts-empty-eyebrow {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1;
+    color: var(--accent-primary);
+}
+
+.log-lifts-panel--empty p {
+    max-width: 32ch;
+    margin: 0;
+    color: var(--text-secondary);
+}
+
+.section-subtitle {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text-muted);
+    margin-left: 6px;
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.log-lifts-panel .pr-grid {
+    margin-top: 8px;
+    display: flex;
+    flex-direction: column;
+}
+
+.log-lifts-panel .pr-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 16px;
+    padding: 12px 0;
+    background: transparent;
+    border: 0;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    box-shadow: none;
+}
+
+.log-lifts-panel .pr-card:last-child {
+    border-bottom: 0;
+    padding-bottom: 0;
+}
+
+.log-lifts-panel .pr-card h4 {
+    margin: 0;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.log-lifts-panel .pr-row-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.log-lifts-panel .pr-value {
+    margin-top: 0;
+    font-size: 16px;
+    font-weight: 700;
+    text-align: right;
+    min-width: 72px;
+}
+
+.log-lifts-panel .pr-badge {
+    position: static;
+    top: auto;
+    right: auto;
+    padding: 2px 5px;
+    font-size: 9px;
+    letter-spacing: 0.14em;
+}
+
+.log-lifts-panel .card-item {
+    margin-bottom: 0;
+    padding: 16px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(30, 41, 59, 0.75), rgba(17, 24, 39, 0.75));
+    box-shadow: var(--shadow-sm);
+}
+
+.log-lifts-panel .card-item + .card-item {
+    margin-top: 12px;
+}
+
+.log-lifts-panel #recent-lifts {
+    display: flex;
+    flex-direction: column;
+}
+
+.lift-feedback-primary {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.lift-feedback-secondary {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-top: 4px;
+}
+
+.log-lifts-sets-note {
+    margin-bottom: 10px;
+}
+
+.pr-truncation-note {
+    margin-top: 12px;
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    padding: 8px;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+}
+
+.pr-truncation-note a {
+    color: var(--text-primary);
+    text-decoration: underline;
+}
+
+.pr-truncation-note a:hover {
+    color: var(--accent-primary);
+}
+
+@media (max-width: 1024px) {
+    .log-lifts-hero {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .log-lifts-hero-stats {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+@media (max-width: 768px) {
+    .log-lifts-hero {
+        padding: 20px;
+    }
+
+    .log-lifts-hero-stats {
+        grid-template-columns: 1fr;
+    }
+
+    .log-lifts-panel--empty {
+        min-height: 180px;
+    }
+}
