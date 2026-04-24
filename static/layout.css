@@ -43,4 +43,7 @@
     .layout-split {
         grid-template-columns: 1fr;
     }
+    .page-wrapper {
+        padding: 16px 12px;
+    }
 }

@@ -380,4 +380,19 @@
     .log-lifts-panel--empty {
         min-height: 180px;
     }
+
+    [data-set-row] .input-with-unit {
+        flex-direction: column;
+        gap: 12px;
+        align-items: flex-start;
+    }
+
+    [data-set-row] .input-with-unit .form-input {
+        width: 100%;
+    }
+    
+    [data-set-row] .log-lifts-inline-action--remove {
+        align-self: flex-end;
+        padding: 8px 0;
+    }
 }

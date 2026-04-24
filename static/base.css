@@ -10,6 +10,7 @@ body {
   background: var(--bg-primary);
   line-height: 1.5;
   padding-top: 12px;
+  overflow-x: hidden;
 }
 
 h1, h2, h3 {

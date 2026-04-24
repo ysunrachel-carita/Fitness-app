@@ -126,7 +126,7 @@
     border-radius: var(--radius-sm);
     background: var(--bg-tertiary);
     color: var(--text-primary);
-    font-size: 15px;
+    font-size: 16px;
     font-family: var(--font-body);
     transition: border-color var(--transition-normal),
         box-shadow var(--transition-normal);
@@ -172,7 +172,10 @@
 /* ===== BUTTON SYSTEM ===== */
 
 .btn {
-    display: inline-block;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
     padding: 12px 20px;
     border-radius: var(--radius-sm);
     border: none;
@@ -297,6 +300,7 @@
     text-decoration: none;
     font-size: 16px;
     font-weight: 600;
+    padding: 12px 4px;
 }
 
 .nav-right a,
@@ -313,7 +317,7 @@
     display: inline-flex;
     align-items: center;
     gap: 4px;
-    padding: 0;
+    padding: 12px 4px;
     margin: 0;
     background: transparent;
     border: 0;
@@ -616,6 +620,12 @@
 
 .hidden {
     display: none;
+}
+
+@media (max-width: 768px) {
+    .desktop-only {
+        display: none !important;
+    }
 }
 
 /* ===== PERSONAL RECORD ===== */

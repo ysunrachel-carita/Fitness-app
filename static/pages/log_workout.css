@@ -399,10 +399,33 @@
 
 @media (max-width: 768px) {
     .log-workout-hero {
-        padding: 20px;
+        padding: 16px;
     }
 
     .component-row {
-        grid-template-columns: 1fr 90px 70px auto;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        padding: 16px;
+        background: rgba(255, 255, 255, 0.02);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        margin-bottom: 12px;
+        position: relative;
+    }
+
+    .component-row > * {
+        width: 100%;
+    }
+
+    .delete-comp-btn {
+        position: absolute;
+        top: 8px;
+        right: 8px;
+        width: 32px;
+        height: 32px;
+        background: rgba(255, 0, 0, 0.1);
+        border-radius: 50%;
+        color: var(--danger-color);
     }
 }
