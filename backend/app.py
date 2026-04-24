@@ -3736,5 +3736,12 @@ def progress():
     )
 
 
+# Load exercises into memory at startup
+try:
+    load_exercises_from_db()
+except Exception as e:
+    print(f"⚠️ Could not load exercises: {e}")
+
+
 if __name__ == "__main__":
     app.run()
