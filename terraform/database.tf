@@ -43,6 +43,7 @@ resource "aws_db_instance" "postgres" {
   db_name               = "fitness_db"
   username              = var.db_username
   password              = var.db_password
+  apply_immediately     = true
   db_subnet_group_name  = aws_db_subnet_group.db_subnets.name
   vpc_security_group_ids = [aws_security_group.db_sg.id]
   skip_final_snapshot   = true
