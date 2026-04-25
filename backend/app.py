@@ -1061,6 +1061,8 @@ class PgWrapper:
             self.conn.rollback()
             raise e
             
+        self.conn.commit() # Ensure changes are saved
+            
         lastrowid = None
         if needs_returning and "RETURNING id" in pg_query:
             row = cursor.fetchone()
@@ -1405,7 +1407,7 @@ def init_db():
             order_index INTEGER NOT NULL,
             type TEXT,
             pattern_index INTEGER,
-            completed BOOLEAN DEFAULT 1,
+            completed BOOLEAN DEFAULT TRUE,
             shared_weight_kg REAL,
             rest_seconds INTEGER,
             FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE
