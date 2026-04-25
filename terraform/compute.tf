@@ -52,27 +52,35 @@ resource "aws_security_group" "ec2_sg" {
 # EC2 Instance
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.amazon_linux_2023.id
-  instance_type          = "t3.micro" # Free Tier eligible
+  instance_type          = "t4g.micro" # ARM-based, matches Mac-built images
   subnet_id              = aws_subnet.public.id
   vpc_security_group_ids = [aws_security_group.ec2_sg.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
+  user_data_replace_on_change = true
 
   user_data = <<-EOF
               #!/bin/bash
+              exec > >(tee /var/log/user-data.log|logger -t user-data -s 2>/dev/console) 2>&1
+              echo "Starting user_data script..."
+              
               yum update -y
-              yum install -y docker
+              yum install -y docker aws-cli
               systemctl start docker
               systemctl enable docker
               
               # Log in to ECR
+              echo "Logging in to ECR..."
               aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${split("/", var.container_image)[0]}
               
-              # Run the container
+              # Run the container (using single quotes for ENV to avoid shell expansion of password)
+              echo "Starting Docker container..."
               docker run -d \
                 --name web \
                 -p 80:5000 \
-                -e DATABASE_URL="postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}/fitness_db" \
+                -e DATABASE_URL='postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}/fitness_db' \
                 ${var.container_image}
+              
+              echo "User Data script finished."
               EOF
 
   tags = {
@@ -85,6 +93,6 @@ data "aws_ami" "amazon_linux_2023" {
   owners      = ["amazon"]
   filter {
     name   = "name"
-    values = ["al2023-ami-*-arm64"] # ARM instances are often cheaper/better
+    values = ["al2023-ami-*-arm64"] # Match t4g.micro architecture
   }
 }
