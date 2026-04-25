@@ -23,7 +23,7 @@ resource "aws_db_instance" "postgres" {
   count                  = var.db_type == "rds" ? 1 : 0
   identifier            = "${var.project_name}-db"
   engine                = "postgres"
-  engine_version        = "15.4"
+  engine_version        = "15"
   instance_class        = "db.t3.micro"
   allocated_storage     = 20
   db_name               = "fitness_db"
@@ -39,7 +39,7 @@ resource "aws_rds_cluster" "aurora" {
   count                  = var.db_type == "aurora" ? 1 : 0
   cluster_identifier     = "${var.project_name}-aurora-cluster"
   engine                 = "aurora-postgresql"
-  engine_version         = "15.4"
+  engine_version         = "15.3"
   database_name          = "fitness_db"
   master_username        = var.db_username
   master_password        = var.db_password

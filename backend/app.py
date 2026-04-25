@@ -1276,17 +1276,20 @@ def _ensure_indexes():
 
 def init_db():
     conn = get_db()
-    conn.execute("""
+    # Use SERIAL for Postgres, AUTOINCREMENT for SQLite
+    id_type = "SERIAL PRIMARY KEY" if "postgresql" in str(os.environ.get("DATABASE_URL")).lower() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
             created_at TEXT NOT NULL
         )
     """)
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS exercise_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             user_id INTEGER NOT NULL,
             exercise TEXT NOT NULL,
             notes TEXT,
@@ -1295,9 +1298,9 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS set_entries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             session_id INTEGER NOT NULL,
             weight_kg REAL NOT NULL,
             reps INTEGER NOT NULL,
@@ -1310,9 +1313,9 @@ def init_db():
     if _table_exists(conn, 'lifts'):
         migrate_legacy_lifts_to_sessions(conn)
     
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS exercises (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             name TEXT UNIQUE NOT NULL,
             category TEXT NOT NULL,
             is_calorie BOOLEAN DEFAULT FALSE,
@@ -1337,9 +1340,9 @@ def init_db():
     """)
     
     # Create wods table
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS wods (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             user_id INTEGER NOT NULL,
             name TEXT,
             workout_text TEXT NOT NULL,
@@ -1350,9 +1353,9 @@ def init_db():
         )
     """)
     
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS runs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             user_id INTEGER NOT NULL,
             distance_km REAL NOT NULL,
             duration_seconds INTEGER NOT NULL,
@@ -1365,49 +1368,24 @@ def init_db():
         )
     """)
 
-    try:
-        conn.execute("ALTER TABLE runs ADD COLUMN run_type TEXT NOT NULL DEFAULT 'Run'")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
+    def _safe_alter(sql):
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass # Usually column already exists
 
-    # Add photo_path column if it doesn't exist (for existing databases)
-    try:
-        conn.execute("ALTER TABLE user_profiles ADD COLUMN photo_path TEXT")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-
-    # Add display_name column to users table if it doesn't exist (for existing databases)
-    try:
-        conn.execute("ALTER TABLE users ADD COLUMN display_name TEXT")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-
-    # Add WOD type columns to wods table if they don't exist (for existing databases)
-    try:
-        conn.execute("ALTER TABLE wods ADD COLUMN wod_type TEXT")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    try:
-        conn.execute("ALTER TABLE wods ADD COLUMN time_cap_minutes INTEGER")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    try:
-        conn.execute("ALTER TABLE wods ADD COLUMN emom_interval INTEGER")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
-    try:
-        conn.execute("ALTER TABLE wods ADD COLUMN emom_duration INTEGER")
-    except sqlite3.OperationalError:
-        pass  # Column already exists
+    _safe_alter("ALTER TABLE runs ADD COLUMN run_type TEXT NOT NULL DEFAULT 'Run'")
+    _safe_alter("ALTER TABLE user_profiles ADD COLUMN photo_path TEXT")
+    _safe_alter("ALTER TABLE users ADD COLUMN display_name TEXT")
+    _safe_alter("ALTER TABLE wods ADD COLUMN wod_type TEXT")
+    _safe_alter("ALTER TABLE wods ADD COLUMN time_cap_minutes INTEGER")
+    _safe_alter("ALTER TABLE wods ADD COLUMN emom_interval INTEGER")
+    _safe_alter("ALTER TABLE wods ADD COLUMN emom_duration INTEGER")
+    _safe_alter("ALTER TABLE exercise_sessions ADD COLUMN workout_session_id INTEGER")
         
-    try:
-        conn.execute("ALTER TABLE exercise_sessions ADD COLUMN workout_session_id INTEGER")
-    except sqlite3.OperationalError:
-        pass
-        
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS workout_sessions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
             type TEXT,
@@ -1420,9 +1398,9 @@ def init_db():
             FOREIGN KEY(user_id) REFERENCES users(id)
         )
     """)
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS set_groups (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             workout_session_id INTEGER NOT NULL,
             order_index INTEGER NOT NULL,
             type TEXT,
@@ -1433,9 +1411,9 @@ def init_db():
             FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE
         )
     """)
-    conn.execute("""
+    conn.execute(f"""
         CREATE TABLE IF NOT EXISTS set_components (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             set_group_id INTEGER NOT NULL,
             exercise_id INTEGER NOT NULL,
             reps INTEGER,
@@ -3736,11 +3714,12 @@ def progress():
     )
 
 
-# Load exercises into memory at startup
+# Initialize database and load cache at startup
 try:
+    init_db()
     load_exercises_from_db()
 except Exception as e:
-    print(f"⚠️ Could not load exercises: {e}")
+    print(f"⚠️ Could not initialize DB or load cache: {e}")
 
 
 if __name__ == "__main__":
