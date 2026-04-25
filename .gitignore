@@ -6,3 +6,8 @@ venv/
 .DS_Store
 fitness.db
 *.backup
+
+.terraform/
+
+*.tfstate
+*.tfstate.backup

@@ -1,127 +1,30 @@
-# ECS Cluster
-resource "aws_ecs_cluster" "main" {
-  name = "${var.project_name}-cluster"
-}
-
-# ALB
-resource "aws_lb" "main" {
-  name               = "${var.project_name}-alb"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.alb_sg.id]
-  subnets            = aws_subnet.public[*].id
-}
-
-resource "aws_lb_target_group" "app" {
-  name        = "${var.project_name}-tg"
-  port        = 5000
-  protocol    = "HTTP"
-  vpc_id      = aws_vpc.main.id
-  target_type = "ip"
-
-  health_check {
-    path = "/ping"
-  }
-}
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.main.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.app.arn
-  }
-}
-
-locals {
-  db_endpoint = var.db_type == "rds" ? aws_db_instance.postgres[0].endpoint : aws_rds_cluster.aurora[0].endpoint
-}
-
-# ECS Task Definition
-resource "aws_ecs_task_definition" "app" {
-  family                   = var.project_name
-  network_mode             = "awsvpc"
-  requires_compatibilities = ["FARGATE"]
-  cpu                      = "256"
-  memory                   = "512"
-  execution_role_arn       = aws_iam_role.ecs_execution_role.arn
-  task_role_arn            = aws_iam_role.ecs_task_role.arn
-
-  container_definitions = jsonencode([{
-    name      = "web"
-    image     = var.container_image
-    essential = true
-    portMappings = [{
-      containerPort = 5000
-      hostPort      = 5000
-    }]
-    environment = [
-      {
-        name  = "DATABASE_URL"
-        value = "postgresql://${var.db_username}:${var.db_password}@${local.db_endpoint}/fitness_db"
-      }
-    ]
-  }])
-}
-
-# ECS Service
-resource "aws_ecs_service" "main" {
-  name            = "${var.project_name}-service"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.app.arn
-  launch_type     = "FARGATE"
-  desired_count   = 1
-
-  network_configuration {
-    subnets          = aws_subnet.private[*].id
-    security_groups  = [aws_security_group.ecs_sg.id]
-    assign_public_ip = false # In private subnet
-  }
-
-  load_balancer {
-    target_group_arn = aws_lb_target_group.app.arn
-    container_name   = "web"
-    container_port   = 5000
-  }
-}
-
-# IAM Roles
-resource "aws_iam_role" "ecs_execution_role" {
-  name = "${var.project_name}-ecs-exec-role"
+# IAM Role for EC2 to pull from ECR
+resource "aws_iam_role" "ec2_role" {
+  name = "${var.project_name}-ec2-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Action = "sts:AssumeRole"
       Effect = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
+      Principal = { Service = "ec2.amazonaws.com" }
     }]
   })
 }
 
-resource "aws_iam_role_policy_attachment" "ecs_exec_policy" {
-  role       = aws_iam_role.ecs_execution_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+resource "aws_iam_role_policy_attachment" "ec2_ecr_policy" {
+  role       = aws_iam_role.ec2_role.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
 }
 
-resource "aws_iam_role" "ecs_task_role" {
-  name = "${var.project_name}-ecs-task-role"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = { Service = "ecs-tasks.amazonaws.com" }
-    }]
-  })
+resource "aws_iam_instance_profile" "ec2_profile" {
+  name = "${var.project_name}-ec2-profile"
+  role = aws_iam_role.ec2_role.name
 }
 
-# Security Groups
-resource "aws_security_group" "alb_sg" {
-  name   = "${var.project_name}-alb-sg"
+# Security Group for EC2
+resource "aws_security_group" "ec2_sg" {
+  name   = "${var.project_name}-ec2-sg"
   vpc_id = aws_vpc.main.id
 
   ingress {
@@ -131,6 +34,13 @@ resource "aws_security_group" "alb_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"] # SSH access (optional)
+  }
+
   egress {
     from_port   = 0
     to_port     = 0
@@ -139,21 +49,42 @@ resource "aws_security_group" "alb_sg" {
   }
 }
 
-resource "aws_security_group" "ecs_sg" {
-  name   = "${var.project_name}-ecs-sg"
-  vpc_id = aws_vpc.main.id
+# EC2 Instance
+resource "aws_instance" "app" {
+  ami                    = data.aws_ami.amazon_linux_2023.id
+  instance_type          = "t3.micro" # Free Tier eligible
+  subnet_id              = aws_subnet.public.id
+  vpc_security_group_ids = [aws_security_group.ec2_sg.id]
+  iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
 
-  ingress {
-    from_port       = 5000
-    to_port         = 5000
-    protocol        = "tcp"
-    security_groups = [aws_security_group.alb_sg.id]
+  user_data = <<-EOF
+              #!/bin/bash
+              yum update -y
+              yum install -y docker
+              systemctl start docker
+              systemctl enable docker
+              
+              # Log in to ECR
+              aws ecr get-login-password --region ${var.aws_region} | docker login --username AWS --password-stdin ${split("/", var.container_image)[0]}
+              
+              # Run the container
+              docker run -d \
+                --name web \
+                -p 80:5000 \
+                -e DATABASE_URL="postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}/fitness_db" \
+                ${var.container_image}
+              EOF
+
+  tags = {
+    Name = "${var.project_name}-app"
   }
+}
 
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
+data "aws_ami" "amazon_linux_2023" {
+  most_recent = true
+  owners      = ["amazon"]
+  filter {
+    name   = "name"
+    values = ["al2023-ami-*-arm64"] # ARM instances are often cheaper/better
   }
 }
