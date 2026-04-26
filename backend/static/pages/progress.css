@@ -276,6 +276,30 @@
     color: var(--text-muted);
 }
 
+/* Tappable Stat Card */
+.progress-stat--link {
+    text-decoration: none;
+    transition: all 0.2s ease;
+    cursor: pointer;
+    display: block;
+}
+
+.progress-stat--link:hover {
+    background: var(--bg-secondary);
+    border-color: var(--primary-color);
+    transform: translateY(-1px);
+}
+
+.progress-stat-action {
+    color: var(--primary-color);
+    font-weight: 600;
+    opacity: 0.8;
+}
+
+.progress-stat--link:hover .progress-stat-action {
+    opacity: 1;
+}
+
 .progress-insight-message {
     margin-top: 16px;
     padding: 14px 18px;

@@ -45,7 +45,7 @@
         {% if grouped %}
             {% for day, day_sessions in grouped.items() %}
             <div class="history-date-group" data-date="{{ day }}">
-                <div class="history-date">{{ day }}</div>
+                <div class="history-date">{{ day | format_short_date }}</div>
 
                 {% for session in day_sessions %}
                 <div class="history-row" data-id="{{ session.id }}">

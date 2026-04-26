@@ -1812,7 +1812,7 @@ def login():
         user = create_user(username, password)
     session["user_id"] = user["id"]
     session["username"] = user["username"]
-    return redirect(url_for("log_lifts"))
+    return redirect(url_for("dashboard"))
 
 @app.route("/dashboard")
 @login_required
@@ -2511,9 +2511,7 @@ def log_lifts():
             conn.close()
             return redirect(url_for('log_lifts'))
 
-    # GET request - show recent lifts
-    recent_sessions_limit = 5
-    sessions = fetch_user_sessions(conn, user_id, limit=recent_sessions_limit, order_desc=True)
+    # GET request - show PRs
     prs = build_pr_gallery(fetch_user_sessions(conn, user_id, limit=None, order_desc=True))
     prs_recent = sorted(prs['entries'], key=lambda x: x['date'], reverse=True)[:6]
     prs_truncated = len(prs['entries']) > 6
@@ -2522,8 +2520,6 @@ def log_lifts():
     
     return render_template(
         "log_lifts.html",
-        rows=sessions,
-        recent_sessions_limit=recent_sessions_limit,
         prs=prs,
         prs_recent=prs_recent,
         prs_truncated=prs_truncated,
@@ -3480,12 +3476,6 @@ def log_run():
             return redirect(url_for('log_run'))
 
     # GET
-    recent_limit = 5
-    recent_rows = conn.execute(
-        "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, created_at DESC LIMIT ?",
-        (user_id, recent_limit)
-    ).fetchall()
-
     all_rows = conn.execute(
         "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, created_at DESC",
         (user_id,)
@@ -3493,7 +3483,6 @@ def log_run():
 
     total_runs = len(all_rows)
     all_enriched = [_enrich_run(dict(r)) for r in all_rows]
-    recent_enriched = [_enrich_run(dict(r)) for r in recent_rows]
 
     fastest_runs = sorted(all_enriched, key=lambda x: x['pace_seconds_per_km'])[:3]
     longest_runs = sorted(all_enriched, key=lambda x: (-x['distance_km'], x['duration_seconds']))[:3]
@@ -3503,8 +3492,6 @@ def log_run():
     conn.close()
     return render_template(
         'log_run.html',
-        rows=recent_enriched,
-        recent_limit=recent_limit,
         total_runs=total_runs,
         best_pace=best_pace,
         fastest_runs=fastest_runs,

@@ -13,23 +13,10 @@
         {% set pr_count = prs.entries|length if prs and prs.entries else 0 %}
         <div class="log-lifts-hero">
             <div>
-                <div class="log-lifts-eyebrow">Workout log</div>
-                <h2 class="page-title log-lifts-title log-lifts-title--condensed">Train. Log. See progress.</h2>
-                <p class="log-lifts-hero-text">
-                    Log sets fast and keep progress visible.
-                </p>
+                <div class="log-lifts-eyebrow">Lift Log</div>
+                <h2 class="page-title log-lifts-title log-lifts-title--condensed">Lift. Log. Progress.</h2>
             </div>
-
-            <div class="log-lifts-hero-stats">
-                <div class="log-lifts-stat">
-                    <span id="log-lifts-total">{{ lift_total }}</span>
-                    <small>Lifts</small>
-                </div>
-                <div class="log-lifts-stat">
-                    <span>{{ pr_count }}</span>
-                    <small>PRs</small>
-                </div>
-            </div>
+            <a href="{{ url_for('lifts_history') }}" class="btn btn--secondary">View History</a>
         </div>
 
         <div class="layout-split log-lifts-layout">
@@ -42,19 +29,21 @@
                     <h3>Add Lift</h3>
 
                     {% with messages = get_flashed_messages(with_categories=true) %}
-                        {% if messages %}
-                            {% for category, message in messages %}
-                                <div class="flash {{ category }}">{{ message }}</div>
-                            {% endfor %}
-                        {% endif %}
+                    {% if messages %}
+                    {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                    {% endif %}
                     {% endwith %}
 
                     <form method="POST" id="log-lift-form">
 
                         <div class="form-group">
                             <label class="form-label">Exercise</label>
-                            <div class="autocomplete-container" id="autocomplete-wrapper" data-exercises='{{ exercises|tojson }}'>
-                                <input class="form-input" type="text" name="exercise" id="exercise" required autocomplete="off">
+                            <div class="autocomplete-container" id="autocomplete-wrapper"
+                                data-exercises='{{ exercises|tojson }}'>
+                                <input class="form-input" type="text" name="exercise" id="exercise" required
+                                    autocomplete="off">
                                 <div id="exercise-suggestions" class="suggestions-dropdown"></div>
                             </div>
                         </div>
@@ -67,15 +56,20 @@
                                     <label class="form-label">Set 1</label>
                                     <div class="input-with-unit">
                                         <div style="display: flex; gap: 10px; width: 100%;">
-                                            <input class="form-input" style="flex: 1;" type="number" step="0.1" min="0" name="weight_kg[]" placeholder="Weight" required>
-                                            <input class="form-input" style="flex: 1;" type="number" min="1" step="1" name="reps[]" placeholder="Reps" required>
+                                            <input class="form-input" style="flex: 1;" type="number" step="0.1" min="0"
+                                                name="weight_kg[]" placeholder="Weight" required>
+                                            <input class="form-input" style="flex: 1;" type="number" min="1" step="1"
+                                                name="reps[]" placeholder="Reps" required>
                                         </div>
-                                        <button type="button" class="log-lifts-inline-action log-lifts-inline-action--remove" data-remove-set disabled>Remove</button>
+                                        <button type="button"
+                                            class="log-lifts-inline-action log-lifts-inline-action--remove"
+                                            data-remove-set disabled>Remove</button>
                                     </div>
                                 </div>
                             </div>
 
-                            <button type="button" class="log-lifts-inline-action log-lifts-inline-action--add" id="add-set-btn">+ Add Set</button>
+                            <button type="button" class="log-lifts-inline-action log-lifts-inline-action--add"
+                                id="add-set-btn">+ Add Set</button>
                         </div>
 
                         <div class="form-group">
@@ -90,7 +84,8 @@
 
                         <div class="form-group">
                             <label class="form-label">Date</label>
-                            <input class="form-input" type="date" name="date" value="{{ today_date }}" max="{{ today_date }}" required>
+                            <input class="form-input" type="date" name="date" value="{{ today_date }}"
+                                max="{{ today_date }}" required>
                         </div>
 
                         <div class="form-group">
@@ -133,7 +128,8 @@
                     <h3>Personal Records <span class="section-subtitle">(most recent)</span></h3>
                     <div class="pr-grid" id="pr-grid">
                         {% for record in prs_recent %}
-                        <div class="pr-card" data-pr-card data-exercise="{{ record.exercise }}" data-weight="{{ record.weight_kg }}">
+                        <div class="pr-card" data-pr-card data-exercise="{{ record.exercise }}"
+                            data-weight="{{ record.weight_kg }}">
                             <h4>{{ record.exercise_label }}</h4>
                             <div class="pr-row-meta">
                                 <div class="pr-value">{{ record.weight_display }}</div>
@@ -143,60 +139,17 @@
                         {% endfor %}
                     </div>
                     <div class="pr-truncation-note">
-                        {% if prs_truncated %}Showing top 6 — {% endif %}See all your PRs on the <a href="{{ url_for('progress') }}">Progress page</a>.
+                        {% if prs_truncated %}Showing top 6 — {% endif %}See all your PRs on the <a
+                            href="{{ url_for('progress') }}">Progress page</a>.
                     </div>
                 </div>
                 {% endif %}
 
-                {% if rows %}
-                <div class="card log-lifts-panel log-lifts-panel--data">
 
-                    <div class="section-header">
-                        <h3>Recent Sessions</h3>
-                        <a href="{{ url_for('lifts_history') }}" class="btn btn--secondary">
-                            View all
-                        </a>
-                    </div>
-
-                    <div id="recent-lifts" data-limit="{{ recent_sessions_limit }}">
-                    {% for row in rows %}
-                    <div class="card-item">
-
-                        <h4>{{ row.exercise.title() }}</h4>
-
-                        <div class="card-meta">
-                            {{ row.summary_label }}
-                        </div>
-
-                        {% if row.sets %}
-                        <div class="card-meta">
-                            {% for set_entry in row.sets %}
-                                Set {{ loop.index }}: {{ set_entry.weight_kg|format_weight }}kg × {{ set_entry.reps }} {{ set_entry.reps|format_rep_label }}{% if not loop.last %}<br>{% endif %}
-                            {% endfor %}
-                        </div>
-                        {% endif %}
-
-                        {% if row.notes %}
-                        <div class="card-meta">
-                            <strong>Notes:</strong> {{ row.notes }}
-                        </div>
-                        {% endif %}
-
-                        <div class="card-meta">
-                            {{ row.date|string|truncate(10, True, '') }}
-                        </div>
-
-                    </div>
-                    {% endfor %}
-                    </div>
-
-                </div>
-                {% endif %}
-
-                {% if not rows and not (prs and prs.entries) %}
+                {% if not (prs and prs.entries) %}
                 <div class="card log-lifts-panel log-lifts-panel--empty" id="log-lifts-empty-state">
                     <div class="log-lifts-empty-eyebrow">Start here</div>
-                    <p>Log your first lift to see your recent sessions and records here.</p>
+                    <p>Log your first lift to see your records here.</p>
                 </div>
                 {% endif %}
 
@@ -207,118 +160,118 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const exerciseInput = document.getElementById('exercise');
-    const suggestionsDiv = document.getElementById('exercise-suggestions');
-    const wrapper = document.getElementById('autocomplete-wrapper');
-    const addSetBtn = document.getElementById('add-set-btn');
-    const setsContainer = document.getElementById('lift-set-rows');
-    
-    if (!exerciseInput || !suggestionsDiv || !wrapper) return;
+    document.addEventListener('DOMContentLoaded', function () {
+        const exerciseInput = document.getElementById('exercise');
+        const suggestionsDiv = document.getElementById('exercise-suggestions');
+        const wrapper = document.getElementById('autocomplete-wrapper');
+        const addSetBtn = document.getElementById('add-set-btn');
+        const setsContainer = document.getElementById('lift-set-rows');
 
-    function formatRepLabel(value) {
-        return Number(value) === 1 ? 'rep' : 'reps';
-    }
+        if (!exerciseInput || !suggestionsDiv || !wrapper) return;
 
-    function formatSetLabel(value) {
-        return Number(value) === 1 ? 'set' : 'sets';
-    }
-    
-    let exercises = [];
-    try {
-        exercises = JSON.parse(wrapper.getAttribute('data-exercises')) || [];
-    } catch (e) {
-        return;
-    }
+        function formatRepLabel(value) {
+            return Number(value) === 1 ? 'rep' : 'reps';
+        }
 
-    function normalize(text) {
-        return text
-            .toLowerCase()
-            .replace(/[-\s]/g, '')
-            .replace(/s$/, '');
-    }
+        function formatSetLabel(value) {
+            return Number(value) === 1 ? 'set' : 'sets';
+        }
 
-    exerciseInput.addEventListener('input', function() {
-        const value = this.value.toLowerCase().trim();
-
-        if (value.length < 2) {
-            suggestionsDiv.style.display = 'none';
+        let exercises = [];
+        try {
+            exercises = JSON.parse(wrapper.getAttribute('data-exercises')) || [];
+        } catch (e) {
             return;
         }
 
-        const scored = [];
-
-        for (let ex of exercises) {
-            const normEx = normalize(ex);
-            const normQuery = normalize(value);
-
-            if (!normQuery) continue;
-
-            let score = 4;
-
-            if (normEx === normQuery) score = 0;
-            else if (normEx.startsWith(normQuery)) score = 1;
-            else if (normEx.includes(normQuery)) score = 2;
-
-            scored.push({ ex, score });
+        function normalize(text) {
+            return text
+                .toLowerCase()
+                .replace(/[-\s]/g, '')
+                .replace(/s$/, '');
         }
 
-        scored.sort((a, b) => a.score - b.score);
+        exerciseInput.addEventListener('input', function () {
+            const value = this.value.toLowerCase().trim();
 
-        const unique = scored
-            .filter(s => s.score < 4)
-            .slice(0, 8)
-            .map(s => s.ex);
+            if (value.length < 2) {
+                suggestionsDiv.style.display = 'none';
+                return;
+            }
 
-        if (unique.length > 0) {
-            suggestionsDiv.innerHTML = unique.map(function(ex) {
-                return '<div class="suggestion-item" data-exercise="' + ex + '">' + ex + '</div>';
-            }).join('');
-            suggestionsDiv.style.display = 'block';
-        } else {
-            suggestionsDiv.style.display = 'none';
-        }
-    });
+            const scored = [];
 
-    suggestionsDiv.addEventListener('click', function(e) {
-        if (e.target.classList.contains('suggestion-item')) {
-            exerciseInput.value = e.target.dataset.exercise;
-            suggestionsDiv.style.display = 'none';
-        }
-    });
+            for (let ex of exercises) {
+                const normEx = normalize(ex);
+                const normQuery = normalize(value);
 
-    document.addEventListener('click', function(e) {
-        if (!exerciseInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
-            suggestionsDiv.style.display = 'none';
-        }
-    });
+                if (!normQuery) continue;
 
-    exerciseInput.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') {
-            suggestionsDiv.style.display = 'none';
-        }
-    });
+                let score = 4;
 
-    function renumberSetRows() {
-        if (!setsContainer) return;
+                if (normEx === normQuery) score = 0;
+                else if (normEx.startsWith(normQuery)) score = 1;
+                else if (normEx.includes(normQuery)) score = 2;
 
-        const rows = setsContainer.querySelectorAll('[data-set-row]');
-        rows.forEach(function(row, index) {
-            const label = row.querySelector('.form-label');
-            if (label) label.textContent = `Set ${index + 1}`;
+                scored.push({ ex, score });
+            }
 
-            const removeBtn = row.querySelector('[data-remove-set]');
-            if (removeBtn) removeBtn.disabled = rows.length === 1;
+            scored.sort((a, b) => a.score - b.score);
+
+            const unique = scored
+                .filter(s => s.score < 4)
+                .slice(0, 8)
+                .map(s => s.ex);
+
+            if (unique.length > 0) {
+                suggestionsDiv.innerHTML = unique.map(function (ex) {
+                    return '<div class="suggestion-item" data-exercise="' + ex + '">' + ex + '</div>';
+                }).join('');
+                suggestionsDiv.style.display = 'block';
+            } else {
+                suggestionsDiv.style.display = 'none';
+            }
         });
-    }
 
-    function addSetRow() {
-        if (!setsContainer) return;
+        suggestionsDiv.addEventListener('click', function (e) {
+            if (e.target.classList.contains('suggestion-item')) {
+                exerciseInput.value = e.target.dataset.exercise;
+                suggestionsDiv.style.display = 'none';
+            }
+        });
 
-        const row = document.createElement('div');
-        row.className = 'form-group';
-        row.setAttribute('data-set-row', '');
-        row.innerHTML = `
+        document.addEventListener('click', function (e) {
+            if (!exerciseInput.contains(e.target) && !suggestionsDiv.contains(e.target)) {
+                suggestionsDiv.style.display = 'none';
+            }
+        });
+
+        exerciseInput.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') {
+                suggestionsDiv.style.display = 'none';
+            }
+        });
+
+        function renumberSetRows() {
+            if (!setsContainer) return;
+
+            const rows = setsContainer.querySelectorAll('[data-set-row]');
+            rows.forEach(function (row, index) {
+                const label = row.querySelector('.form-label');
+                if (label) label.textContent = `Set ${index + 1}`;
+
+                const removeBtn = row.querySelector('[data-remove-set]');
+                if (removeBtn) removeBtn.disabled = rows.length === 1;
+            });
+        }
+
+        function addSetRow() {
+            if (!setsContainer) return;
+
+            const row = document.createElement('div');
+            row.className = 'form-group';
+            row.setAttribute('data-set-row', '');
+            row.innerHTML = `
             <label class="form-label">Set</label>
             <div class="input-with-unit">
                 <div style="display: flex; gap: 10px; width: 100%;">
@@ -329,165 +282,103 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         `;
 
-        setsContainer.appendChild(row);
-        renumberSetRows();
-    }
+            setsContainer.appendChild(row);
+            renumberSetRows();
+        }
 
-    if (addSetBtn && setsContainer) {
-        addSetBtn.addEventListener('click', function() {
-            addSetRow();
-        });
+        if (addSetBtn && setsContainer) {
+            addSetBtn.addEventListener('click', function () {
+                addSetRow();
+            });
 
-        setsContainer.addEventListener('click', function(e) {
-            const removeBtn = e.target.closest('[data-remove-set]');
-            if (!removeBtn) return;
+            setsContainer.addEventListener('click', function (e) {
+                const removeBtn = e.target.closest('[data-remove-set]');
+                if (!removeBtn) return;
 
-            e.preventDefault();
+                e.preventDefault();
 
-            const row = removeBtn.closest('[data-set-row]');
-            const rows = setsContainer.querySelectorAll('[data-set-row]');
-            if (row && rows.length > 1) {
-                row.remove();
-                renumberSetRows();
-            }
-        });
-
-        renumberSetRows();
-    }
-
-    const form = document.getElementById("log-lift-form");
-
-    if (form) {
-        form.addEventListener("submit", function(e) {
-            e.preventDefault();
-
-            const formData = new FormData(form);
-
-            fetch(form.action, {
-                method: "POST",
-                body: formData,
-                headers: {
-                    "X-Requested-With": "XMLHttpRequest"
+                const row = removeBtn.closest('[data-set-row]');
+                const rows = setsContainer.querySelectorAll('[data-set-row]');
+                if (row && rows.length > 1) {
+                    row.remove();
+                    renumberSetRows();
                 }
-            })
-            .then(res => res.json())
-            .then(data => {
-                if (!data.success) return;
+            });
 
-                createToast(data);
+            renumberSetRows();
+        }
 
-                const session = data.session || null;
-                const rightColumn = document.getElementById('log-lifts-right-column');
-                const emptyState = document.getElementById('log-lifts-empty-state');
-                const liftTotalEl = document.getElementById('log-lifts-total');
-                let recentContainer = document.getElementById('recent-lifts');
-                let prGrid = document.getElementById('pr-grid');
+        const form = document.getElementById("log-lift-form");
 
-                if (emptyState) {
-                    emptyState.remove();
-                }
+        if (form) {
+            form.addEventListener("submit", function (e) {
+                e.preventDefault();
 
-                if (rightColumn && !recentContainer) {
-                    const recentCard = document.createElement('div');
-                    recentCard.className = 'card log-lifts-panel log-lifts-panel--data';
-                    recentCard.innerHTML = `
-                        <div class="section-header">
-                            <h3>Recent Sessions</h3>
-                            <a href="{{ url_for('lifts_history') }}" class="btn btn--secondary">
-                                View all
-                            </a>
-                        </div>
-                        <div id="recent-lifts" data-limit="{{ recent_sessions_limit }}"></div>
-                    `;
-                    rightColumn.appendChild(recentCard);
-                    recentContainer = recentCard.querySelector('#recent-lifts');
-                }
+                const formData = new FormData(form);
 
-                if (rightColumn && data.is_pr && !prGrid) {
-                    const prCard = document.createElement('div');
-                    prCard.className = 'card log-lifts-panel log-lifts-panel--data';
-                    prCard.innerHTML = `
-                        <h3>Personal Records</h3>
-                        <div class="pr-grid" id="pr-grid"></div>
-                    `;
-                    rightColumn.insertBefore(prCard, rightColumn.firstChild);
-                    prGrid = prCard.querySelector('#pr-grid');
-                }
-
-                // Update recent lifts list
-                if (recentContainer) {
-                    const newItem = document.createElement("div");
-                    newItem.className = "card-item";
-
-                    const exercise = session?.exercise_label || (formData.get("exercise") || "");
-                    const summary = session?.summary_label || "";
-                    const notes = session?.notes || formData.get("notes");
-                    const date = session?.date || formData.get("date") || new Date().toISOString().split('T')[0];
-                    const sets = session?.sets || [];
-
-                    let setsHtml = "";
-                    if (Array.isArray(sets) && sets.length) {
-                        setsHtml = `<div class="card-meta">${sets.map(function(setEntry, index) {
-                            return `Set ${index + 1}: ${setEntry.weight_kg}kg × ${setEntry.reps} ${formatRepLabel(setEntry.reps)}`;
-                        }).join('<br>')}</div>`;
+                fetch(form.action, {
+                    method: "POST",
+                    body: formData,
+                    headers: {
+                        "X-Requested-With": "XMLHttpRequest"
                     }
+                })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!data.success) return;
+                        createToast(data);
 
-                    let notesHtml = "";
-                    if (notes) {
-                        notesHtml = `
-                            <div class="card-meta">
-                                <strong>Notes:</strong> ${notes}
-                            </div>
-                        `;
-                    }
+                        const session = data.session || null;
+                        const rightColumn = document.getElementById('log-lifts-right-column');
+                        const emptyState = document.getElementById('log-lifts-empty-state');
+                        const liftTotalEl = document.getElementById('log-lifts-total');
+                        let prGrid = document.getElementById('pr-grid');
 
-                    newItem.innerHTML = `
-                        <h4>${exercise}</h4>
-                        <div class="card-meta">
-                            ${summary || ''}
-                        </div>
-                        ${setsHtml}
-                        ${notesHtml}
-                        <div class="card-meta">
-                            ${date}
-                        </div>
-                    `;
-                    recentContainer.prepend(newItem);
-                    
-                    // Remove last item if list is too long (matching the server-side limit)
-                    const recentSessionsLimit = parseInt(recentContainer.dataset.limit || '5', 10);
-                    if (recentContainer.children.length > recentSessionsLimit) {
-                        recentContainer.lastElementChild.remove();
-                    }
-                }
-
-                if (liftTotalEl) {
-                    const currentLiftTotal = parseInt(liftTotalEl.textContent || '0', 10);
-                    liftTotalEl.textContent = String(currentLiftTotal + 1);
-                }
-
-                // Update PR gallery if this session is a new PR
-                if (data.is_pr && session) {
-                    if (prGrid) {
-                        const exerciseKey = session.exercise || formData.get('exercise');
-                        const exerciseLabel = session.exercise_label || exerciseKey;
-                        const weightKg = session.best_set?.weight_kg ?? data.current?.weight;
-                        const weightDisplay = session.weight_display || (weightKg !== null && weightKg !== undefined ? `${weightKg}kg` : '-');
-
-                        const existingCard = Array.from(prGrid.querySelectorAll('[data-pr-card]')).find(function(card) {
-                            return card.dataset.exercise === exerciseKey;
-                        });
-
-                        if (existingCard) {
-                            existingCard.remove();
+                        if (emptyState) {
+                            emptyState.remove();
                         }
 
-                        const prCard = document.createElement('div');
-                        prCard.className = 'pr-card';
-                        prCard.setAttribute('data-pr-card', '');
-                        prCard.dataset.exercise = exerciseKey;
-                        prCard.dataset.weight = weightKg ?? '';
-                        prCard.innerHTML = `
+
+                        if (liftTotalEl) {
+                            const currentLiftTotal = parseInt(liftTotalEl.textContent || '0', 10);
+                            liftTotalEl.textContent = String(currentLiftTotal + 1);
+                        }
+
+                        if (data.is_pr && session) {
+                            if (!prGrid && rightColumn) {
+                                const prCard = document.createElement('div');
+                                prCard.className = 'card log-lifts-panel log-lifts-panel--data';
+                                prCard.innerHTML = `
+                                    <h3>Personal Records <span class="section-subtitle">(most recent)</span></h3>
+                                    <div class="pr-grid" id="pr-grid"></div>
+                                    <div class="pr-truncation-note">
+                                        See all your PRs on the <a href="{{ url_for('progress') }}">Progress page</a>.
+                                    </div>
+                                `;
+                                rightColumn.insertBefore(prCard, rightColumn.firstChild);
+                                prGrid = prCard.querySelector('#pr-grid');
+                            }
+
+                            if (prGrid) {
+                                const exerciseKey = session.exercise || formData.get('exercise');
+                                const exerciseLabel = session.exercise_label || exerciseKey;
+                                const weightKg = session.best_set?.weight_kg ?? data.current?.weight;
+                                const weightDisplay = session.weight_display || (weightKg !== null && weightKg !== undefined ? `${weightKg}kg` : '-');
+
+                                const existingCard = Array.from(prGrid.querySelectorAll('[data-pr-card]')).find(function (card) {
+                                    return card.dataset.exercise === exerciseKey;
+                                });
+
+                                if (existingCard) {
+                                    existingCard.remove();
+                                }
+
+                                const prCard = document.createElement('div');
+                                prCard.className = 'pr-card';
+                                prCard.setAttribute('data-pr-card', '');
+                                prCard.dataset.exercise = exerciseKey;
+                                prCard.dataset.weight = weightKg ?? '';
+                                prCard.innerHTML = `
                             <h4>${exerciseLabel}</h4>
                             <div class="pr-row-meta">
                                 <div class="pr-value">${weightDisplay}</div>
@@ -495,43 +386,43 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                         `;
 
-                        prGrid.prepend(prCard);
+                                prGrid.prepend(prCard);
 
-                        const cards = Array.from(prGrid.querySelectorAll('[data-pr-card]'));
-                        cards.sort(function(a, b) {
-                            const weightA = parseFloat(a.dataset.weight || '0');
-                            const weightB = parseFloat(b.dataset.weight || '0');
+                                const cards = Array.from(prGrid.querySelectorAll('[data-pr-card]'));
+                                cards.sort(function (a, b) {
+                                    const weightA = parseFloat(a.dataset.weight || '0');
+                                    const weightB = parseFloat(b.dataset.weight || '0');
 
-                            if (weightB !== weightA) return weightB - weightA;
-                            return (a.querySelector('h4')?.textContent || '').localeCompare(b.querySelector('h4')?.textContent || '');
-                        });
+                                    if (weightB !== weightA) return weightB - weightA;
+                                    return (a.querySelector('h4')?.textContent || '').localeCompare(b.querySelector('h4')?.textContent || '');
+                                });
 
-                        cards.forEach(function(card) {
-                            prGrid.appendChild(card);
-                        });
+                                cards.forEach(function (card) {
+                                    prGrid.appendChild(card);
+                                });
 
-                        while (prGrid.children.length > 6) {
-                            prGrid.lastElementChild.remove();
+                                while (prGrid.children.length > 6) {
+                                    prGrid.lastElementChild.remove();
+                                }
+                            }
                         }
-                    }
-                }
 
-                // reset form after success
-                form.reset();
-                
-                // Keep the date as today even after reset
-                const dateInput = form.querySelector('input[name="date"]');
-                if (dateInput) {
-                    dateInput.value = new Date().toISOString().split('T')[0];
-                }
-            })
-            .catch(() => {
-                alert("Error logging lift");
+                        // reset form after success
+                        form.reset();
+
+                        // Keep the date as today even after reset
+                        const dateInput = form.querySelector('input[name="date"]');
+                        if (dateInput) {
+                            dateInput.value = new Date().toISOString().split('T')[0];
+                        }
+                    })
+                    .catch(() => {
+                        alert("Error logging lift");
+                    });
             });
-        });
-    }
+        }
 
-  
+
         function createToast(data) {
             const existing = document.querySelector(".toast-feedback");
             if (existing) existing.remove();
@@ -580,6 +471,6 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-});
+    });
 </script>
 {% endblock %}

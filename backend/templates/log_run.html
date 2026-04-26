@@ -27,6 +27,7 @@
                     <small>Best Pace</small>
                 </div>
             </div>
+            <a href="{{ url_for('runs_history') }}" class="btn btn--secondary">View History</a>
         </div>
 
         <div class="layout-split log-lifts-layout">
@@ -71,11 +72,17 @@
                         <div class="form-group">
                             <label class="form-label">Duration</label>
                             <div class="input-with-unit log-run-duration-row">
-                                <input class="form-input" type="number" min="0" step="1"
-                                    name="duration_minutes" id="run-minutes" placeholder="Min" required>
+                                <div class="duration-field">
+                                    <input class="form-input" type="number" min="0" step="1"
+                                        name="duration_minutes" id="run-minutes" placeholder="0" required>
+                                    <span class="duration-unit">min</span>
+                                </div>
                                 <span class="log-run-duration-sep">:</span>
-                                <input class="form-input" type="number" min="0" max="59" step="1"
-                                    name="duration_seconds" id="run-seconds" placeholder="Sec">
+                                <div class="duration-field">
+                                    <input class="form-input" type="number" min="0" max="59" step="1"
+                                        name="duration_seconds" id="run-seconds" placeholder="00">
+                                    <span class="duration-unit">sec</span>
+                                </div>
                             </div>
                         </div>
 
@@ -161,42 +168,8 @@
                 </div>
                 {% endif %}
 
-                {% if rows %}
-                <div class="card log-lifts-panel log-lifts-panel--data">
-                    <div class="section-header">
-                        <h3>Recent Runs</h3>
-                        <a href="{{ url_for('runs_history') }}" class="btn btn--secondary">View all</a>
-                    </div>
 
-                    <div id="recent-runs" data-limit="{{ recent_limit }}">
-                        {% for run in rows %}
-                        <div class="card-item">
-                            <div class="log-run-item-row">
-                                <span class="log-run-item-distance">{{ run.distance_display }}</span>
-                                <span class="log-run-item-pace">{{ run.pace_display }}</span>
-                            </div>
-                            <div class="card-meta">
-                                {{ run.duration_display }}
-                                {% set type_key = run.run_type | lower | replace(' ', '') %}
-                                {% if type_key == 'trackrun' %}
-                                    <span class="log-run-type-badge log-run-type-badge--track">Track Run</span>
-                                {% elif type_key == 'treadmill' %}
-                                    <span class="log-run-type-badge log-run-type-badge--treadmill">Treadmill</span>
-                                {% else %}
-                                    <span class="log-run-type-badge log-run-type-badge--run">Run</span>
-                                {% endif %}
-                            </div>
-                            {% if run.notes %}
-                            <div class="card-meta"><strong>Notes:</strong> {{ run.notes }}</div>
-                            {% endif %}
-                            <div class="card-meta">{{ run.date|string|truncate(10, True, '') }}</div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endif %}
-
-                {% if not rows %}
+                {% if not fastest_runs and not longest_runs %}
                 <div class="card log-lifts-panel log-lifts-panel--empty" id="log-run-empty-state">
                     <div class="log-lifts-empty-eyebrow">Start here</div>
                     <p>Log your first run to see your sessions and pace records here.</p>
@@ -234,26 +207,9 @@ document.addEventListener('DOMContentLoaded', function () {
             const emptyState = document.getElementById('log-run-empty-state');
             const totalEl = document.getElementById('log-run-total');
             const bestPaceEl = document.getElementById('log-run-best-pace');
-            let recentContainer = document.getElementById('recent-runs');
             let fastestContainer = document.getElementById('fastest-runs-list');
             let longestContainer = document.getElementById('longest-runs-list');
-
             if (emptyState) emptyState.remove();
-
-            // Create recent runs card if not present
-            if (rightColumn && !recentContainer) {
-                const recentCard = document.createElement('div');
-                recentCard.className = 'card log-lifts-panel log-lifts-panel--data';
-                recentCard.innerHTML = `
-                    <div class="section-header">
-                        <h3>Recent Runs</h3>
-                        <a href="/runs/history" class="btn btn--secondary">View all</a>
-                    </div>
-                    <div id="recent-runs" data-limit="{{ recent_limit }}"></div>
-                `;
-                rightColumn.appendChild(recentCard);
-                recentContainer = recentCard.querySelector('#recent-runs');
-            }
 
             function ensurePBCard(containerId, title, subtitle) {
                 let container = document.getElementById(containerId);
@@ -266,40 +222,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     <div class="log-run-pb-list" id="${containerId}"></div>
                 `;
 
-                const recentCard = document.getElementById('recent-runs')?.closest('.card');
-                if (recentCard && recentCard.parentNode === rightColumn) {
-                    rightColumn.insertBefore(card, recentCard);
-                } else {
-                    rightColumn.appendChild(card);
-                }
+                rightColumn.appendChild(card);
 
                 container = card.querySelector('#' + containerId);
                 return container;
             }
 
-            // Prepend new run to recent list
-            if (recentContainer && data.run) {
-                const run = data.run;
-                const typeKey = (run.run_type || 'Run').toLowerCase().replace(/\s/g, '');
-                const typeModifier = typeKey === 'trackrun' ? 'track' : typeKey === 'treadmill' ? 'treadmill' : 'run';
-                const typeBadge = `<span class="log-run-type-badge log-run-type-badge--${typeModifier}">${run.run_type || 'Run'}</span>`;
-                const newItem = document.createElement('div');
-                newItem.className = 'card-item';
-                newItem.innerHTML = `
-                    <div class="log-run-item-row">
-                        <span class="log-run-item-distance">${run.distance_display}</span>
-                        <span class="log-run-item-pace">${run.pace_display}</span>
-                    </div>
-                    <div class="card-meta">${run.duration_display} ${typeBadge}</div>
-                    ${run.notes ? `<div class="card-meta"><strong>Notes:</strong> ${run.notes}</div>` : ''}
-                    <div class="card-meta">${run.date}</div>
-                `;
-                recentContainer.prepend(newItem);
-                const limit = parseInt(recentContainer.dataset.limit || '5', 10);
-                if (recentContainer.children.length > limit) {
-                    recentContainer.lastElementChild.remove();
-                }
-            }
 
             function buildRunBadge(runType) {
                 const typeKey = (runType || 'Run').toLowerCase().replace(/\s/g, '');

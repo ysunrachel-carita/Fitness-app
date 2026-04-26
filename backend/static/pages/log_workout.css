@@ -474,3 +474,162 @@
         margin-left: 6px;
     }
 }
+
+/* ========================
+   TWO-PHASE REFINE
+   ======================== */
+
+.phase-summary {
+    padding: 12px 16px;
+    background: rgba(30, 41, 59, 0.4);
+    border: 1px dashed var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.5;
+}
+
+.table-container {
+    overflow-x: auto;
+    margin-top: 12px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.execution-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+}
+
+.execution-table th {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px 16px;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+    border-bottom: 1px solid var(--border-color);
+}
+
+.execution-table th.ex-name-th {
+    text-align: left;
+    width: 240px;
+    min-width: 180px;
+}
+
+.execution-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    vertical-align: middle;
+}
+
+.execution-table tr:last-child td {
+    border-bottom: none;
+}
+
+.ex-cell {
+    background: rgba(255, 255, 255, 0.01);
+}
+
+.ex-cell-name {
+    font-weight: 600;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+.ex-cell-reps {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+.round-col {
+    width: 100px;
+    min-width: 80px;
+    text-align: center;
+}
+
+.round-col .form-input {
+    margin-bottom: 0;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 14px;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.same-rounds-check {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+    margin-bottom: 4px;
+}
+
+.same-rounds-check input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent-primary);
+}
+
+/* Unit Toggle */
+.unit-toggle-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.unit-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--text-muted);
+}
+
+.unit-toggle {
+    display: flex;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+}
+
+.unit-toggle input {
+    display: none;
+}
+
+.unit-toggle label {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.unit-toggle input:checked + label {
+    background: var(--accent-primary);
+    color: #fff;
+}
+
+@media (max-width: 600px) {
+    .execution-table th.ex-name-th {
+        width: 140px;
+        min-width: 120px;
+        padding: 10px;
+    }
+    .execution-table td {
+        padding: 10px;
+    }
+    .ex-cell-name { font-size: 13px; }
+}

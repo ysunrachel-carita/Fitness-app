@@ -33,7 +33,7 @@
                     <div class="base-dropdown-content">
                         <a href="/log_workout" class="base-dropdown-item">
                             Log Workout
-                            <span class="base-dropdown-item__sub">(wod, oly complex etc)</span>
+                            <span class="base-dropdown-item__sub">(wods, oly complex etc)</span>
                         </a>
                         <a href="/lifts" class="base-dropdown-item">
                             Log Lift
@@ -45,7 +45,17 @@
                 </div>
 
                 <a href="/progress" class="{% if page == 'progress' %}active{% endif %}">Progress</a>
-                <a href="/lifts/history" class="{% if page == 'history' %}active{% endif %}">History</a>
+
+                <!-- History Dropdown -->
+                <div class="base-dropdown">
+                    <button class="base-dropdown-btn {% if page == 'history' %}active{% endif %}">History ▼</button>
+                    <div class="base-dropdown-content">
+                        <a href="/lifts/history" class="base-dropdown-item">Lifts</a>
+                        <a href="/workouts/history" class="base-dropdown-item">Workouts (wods, oly complex etc)</a>
+                        <a href="/runs/history" class="base-dropdown-item">Runs</a>
+                    </div>
+                </div>
+
                 <a href="/wins" class="{% if page == 'wins' %}active{% endif %}">Wins</a>
                 <!-- <a href="/nutrition">Nutrition</a> -->
 
@@ -91,35 +101,46 @@
     <!-- Bottom Nav (Mobile Only) -->
     <nav class="bottom-nav">
         <a href="/dashboard" class="nav-item {% if page == 'home' %}active{% endif %}">
-            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <svg class="nav-icon" viewBox="0 0 24 24">
+                <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z" />
+            </svg>
             <span class="nav-label">Home</span>
         </a>
         <a href="/progress" class="nav-item {% if page == 'progress' %}active{% endif %}">
-            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+            <svg class="nav-icon" viewBox="0 0 24 24">
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z" />
+            </svg>
             <span class="nav-label">Progress</span>
         </a>
-        
+
         <div class="nav-item-placeholder"></div> <!-- Spacer for FAB -->
 
-        <a href="/lifts/history" class="nav-item {% if page == 'history' %}active{% endif %}">
-            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+        <a href="#" class="nav-item {% if page == 'history' %}active{% endif %}" id="historyTab">
+            <svg class="nav-icon" viewBox="0 0 24 24">
+                <path
+                    d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z" />
+            </svg>
             <span class="nav-label">History</span>
         </a>
         <a href="/wins" class="nav-item {% if page == 'wins' %}active{% endif %}">
-            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <svg class="nav-icon" viewBox="0 0 24 24">
+                <path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z" />
+            </svg>
             <span class="nav-label">Wins</span>
         </a>
     </nav>
 
     <!-- FAB -->
     <button class="fab" id="fabBtn">
-        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+        <svg viewBox="0 0 24 24">
+            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+        </svg>
     </button>
 
     <!-- Bottom Sheet Overlay -->
     <div class="bottom-sheet-overlay" id="sheetOverlay"></div>
 
-    <!-- Bottom Sheet -->
+    <!-- Log Bottom Sheet -->
     <div class="bottom-sheet" id="bottomSheet">
         <div class="bottom-sheet-header">
             <div class="bottom-sheet-handle"></div>
@@ -128,15 +149,37 @@
         <div class="bottom-sheet-content">
             <a href="/lifts" class="sheet-item">
                 <span class="sheet-icon">🏋️</span>
-                <span class="sheet-label">Log Lifts</span>
+                <span class="sheet-label">Log Lifts (strength focus)</span>
             </a>
             <a href="/log_workout" class="sheet-item">
                 <span class="sheet-icon">⏱️</span>
-                <span class="sheet-label">Log WOD</span>
+                <span class="sheet-label">Log Workout (wods, oly complex etc)</span>
             </a>
             <a href="/log_run" class="sheet-item">
                 <span class="sheet-icon">🏃</span>
                 <span class="sheet-label">Log Run</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- History Bottom Sheet -->
+    <div class="bottom-sheet" id="historySheet">
+        <div class="bottom-sheet-header">
+            <div class="bottom-sheet-handle"></div>
+            <h3>History</h3>
+        </div>
+        <div class="bottom-sheet-content">
+            <a href="/lifts/history" class="sheet-item">
+                <span class="sheet-icon">🏋️</span>
+                <span class="sheet-label">Lifts history</span>
+            </a>
+            <a href="/workouts/history" class="sheet-item">
+                <span class="sheet-icon">⏱️</span>
+                <span class="sheet-label">Workouts history</span>
+            </a>
+            <a href="/runs/history" class="sheet-item">
+                <span class="sheet-icon">🏃</span>
+                <span class="sheet-label">Runs history</span>
             </a>
         </div>
     </div>
@@ -147,51 +190,79 @@
         document.addEventListener('DOMContentLoaded', function () {
             {% if session.user_id %}
             const fabBtn = document.getElementById('fabBtn');
+            const historyTab = document.getElementById('historyTab');
             const bottomSheet = document.getElementById('bottomSheet');
+            const historySheet = document.getElementById('historySheet');
             const sheetOverlay = document.getElementById('sheetOverlay');
 
-            function toggleSheet() {
+            function closeAllSheets() {
+                bottomSheet.classList.remove('show');
+                historySheet.classList.remove('show');
+                sheetOverlay.classList.remove('show');
+                document.body.style.overflow = '';
+            }
+
+            function toggleLogSheet() {
                 const isOpen = bottomSheet.classList.contains('show');
                 if (isOpen) {
-                    bottomSheet.classList.remove('show');
-                    sheetOverlay.classList.remove('show');
-                    document.body.style.overflow = '';
+                    closeAllSheets();
                 } else {
+                    closeAllSheets();
                     bottomSheet.classList.add('show');
                     sheetOverlay.classList.add('show');
                     document.body.style.overflow = 'hidden';
                 }
             }
 
-            fabBtn?.addEventListener('click', toggleSheet);
-            sheetOverlay?.addEventListener('click', toggleSheet);
+            function toggleHistorySheet(e) {
+                if (e) e.preventDefault();
+                const isOpen = historySheet.classList.contains('show');
+                if (isOpen) {
+                    closeAllSheets();
+                } else {
+                    closeAllSheets();
+                    historySheet.classList.add('show');
+                    sheetOverlay.classList.add('show');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            fabBtn?.addEventListener('click', toggleLogSheet);
+            historyTab?.addEventListener('click', toggleHistorySheet);
+            sheetOverlay?.addEventListener('click', closeAllSheets);
             {% endif %}
 
-            const logDropdown = document.querySelector('.base-dropdown');
-            const logMenu = logDropdown?.querySelector('.base-dropdown-content');
-
+            // Dropdowns
+            const dropdowns = document.querySelectorAll('.base-dropdown');
             const profileDropdown = document.querySelector('.base-profile-dropdown');
             const profileMenu = profileDropdown?.querySelector('.base-profile-menu');
 
-            // Toggle log dropdown
-            logDropdown?.querySelector('.base-dropdown-btn')
-                ?.addEventListener('click', function (e) {
+            dropdowns.forEach(dropdown => {
+                const btn = dropdown.querySelector('.base-dropdown-btn');
+                const menu = dropdown.querySelector('.base-dropdown-content');
+
+                btn?.addEventListener('click', function (e) {
                     e.stopPropagation();
-                    logMenu.classList.toggle('show');
+                    // Close other dropdowns
+                    dropdowns.forEach(d => {
+                        if (d !== dropdown) d.querySelector('.base-dropdown-content')?.classList.remove('show');
+                    });
                     profileMenu?.classList.remove('show');
+                    menu.classList.toggle('show');
                 });
+            });
 
             // Toggle profile dropdown
             profileDropdown?.querySelector('.base-profile-avatar')
                 ?.addEventListener('click', function (e) {
                     e.stopPropagation();
+                    dropdowns.forEach(d => d.querySelector('.base-dropdown-content')?.classList.remove('show'));
                     profileMenu.classList.toggle('show');
-                    logMenu?.classList.remove('show');
                 });
 
             // Close all on outside click
             document.addEventListener('click', function () {
-                logMenu?.classList.remove('show');
+                dropdowns.forEach(d => d.querySelector('.base-dropdown-content')?.classList.remove('show'));
                 profileMenu?.classList.remove('show');
             });
 

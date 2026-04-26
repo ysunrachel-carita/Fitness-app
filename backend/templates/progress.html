@@ -94,11 +94,11 @@
 
                     <div class="card-item progress-primary-stats">
                         <div class="progress-stats-grid progress-stats-grid--primary">
-                            <div class="progress-stat">
+                            <a href="{{ url_for('lifts_history', exercise=selected_exercise_name) if selected_exercise_name else url_for('lifts_history') }}" class="progress-stat progress-stat--link" id="progress-sessions-card">
                                 <div class="progress-stat-label">Sessions</div>
                                 <div class="progress-stat-value" id="progress-sessions-value">{{ selected_exercise.sessions_count if selected_exercise else '-' }}</div>
-                                <div class="progress-stat-meta">All-time logs</div>
-                            </div>
+                                <div class="progress-stat-meta">All-time logs &middot; <span class="progress-stat-action">View all →</span></div>
+                            </a>
 
                             <div class="progress-stat progress-stat--last-workout">
                                 <div class="progress-stat-label">Last workout</div>
@@ -205,6 +205,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const overlayTitle = document.getElementById('progress-hero-overlay-title');
     const overlayMessage = document.getElementById('progress-hero-overlay-message');
     const sessionsValue = document.getElementById('progress-sessions-value');
+    const sessionsCard = document.getElementById('progress-sessions-card');
     const lastWorkoutValue = document.getElementById('progress-last-workout-value');
     const lastWorkoutMeta = document.getElementById('progress-last-workout-meta');
     const trendMessage = document.getElementById('progress-trend-message');
@@ -498,6 +499,14 @@ document.addEventListener('DOMContentLoaded', function() {
 
         dropdownBtn.textContent = `${exercise.exercise_label} ▾`;
         sessionsValue.textContent = exercise.sessions_count;
+        
+        const historyBaseUrl = "{{ url_for('lifts_history') }}";
+        if (sessionsCard) {
+            sessionsCard.href = exerciseKey 
+                ? `${historyBaseUrl}?exercise=${encodeURIComponent(exercise.exercise)}`
+                : historyBaseUrl;
+        }
+
         lastWorkoutValue.textContent = exercise.current_lift.weight_display;
         lastWorkoutMeta.textContent = exercise.current_lift.date_label;
         trendMessage.textContent = exercise.trend.message;
