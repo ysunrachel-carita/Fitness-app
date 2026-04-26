@@ -28,4 +28,4 @@ ENV PYTHONUNBUFFERED=1
 
 # Run the application using gunicorn
 # We use --chdir backend to ensure app.py can find its templates and static folders
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--chdir", "backend", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--chdir", "backend", "--timeout", "120", "app:app"]

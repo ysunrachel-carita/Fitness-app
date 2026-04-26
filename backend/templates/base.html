@@ -44,7 +44,9 @@
                     </div>
                 </div>
 
-                <a href="/progress">Progress</a>
+                <a href="/progress" class="{% if page == 'progress' %}active{% endif %}">Progress</a>
+                <a href="/lifts/history" class="{% if page == 'history' %}active{% endif %}">History</a>
+                <a href="/wins" class="{% if page == 'wins' %}active{% endif %}">Wins</a>
                 <!-- <a href="/nutrition">Nutrition</a> -->
 
                 <!-- Profile Dropdown -->
@@ -85,9 +87,85 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% if session.user_id %}
+    <!-- Bottom Nav (Mobile Only) -->
+    <nav class="bottom-nav">
+        <a href="/dashboard" class="nav-item {% if page == 'home' %}active{% endif %}">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>
+            <span class="nav-label">Home</span>
+        </a>
+        <a href="/progress" class="nav-item {% if page == 'progress' %}active{% endif %}">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6z"/></svg>
+            <span class="nav-label">Progress</span>
+        </a>
+        
+        <div class="nav-item-placeholder"></div> <!-- Spacer for FAB -->
+
+        <a href="/lifts/history" class="nav-item {% if page == 'history' %}active{% endif %}">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/></svg>
+            <span class="nav-label">History</span>
+        </a>
+        <a href="/wins" class="nav-item {% if page == 'wins' %}active{% endif %}">
+            <svg class="nav-icon" viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>
+            <span class="nav-label">Wins</span>
+        </a>
+    </nav>
+
+    <!-- FAB -->
+    <button class="fab" id="fabBtn">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </button>
+
+    <!-- Bottom Sheet Overlay -->
+    <div class="bottom-sheet-overlay" id="sheetOverlay"></div>
+
+    <!-- Bottom Sheet -->
+    <div class="bottom-sheet" id="bottomSheet">
+        <div class="bottom-sheet-header">
+            <div class="bottom-sheet-handle"></div>
+            <h3>Log Activity</h3>
+        </div>
+        <div class="bottom-sheet-content">
+            <a href="/lifts" class="sheet-item">
+                <span class="sheet-icon">🏋️</span>
+                <span class="sheet-label">Log Lifts</span>
+            </a>
+            <a href="/log_workout" class="sheet-item">
+                <span class="sheet-icon">⏱️</span>
+                <span class="sheet-label">Log WOD</span>
+            </a>
+            <a href="/log_run" class="sheet-item">
+                <span class="sheet-icon">🏃</span>
+                <span class="sheet-label">Log Run</span>
+            </a>
+        </div>
+    </div>
+    {% endif %}
+
     <!-- JS -->
     <script>
         document.addEventListener('DOMContentLoaded', function () {
+            {% if session.user_id %}
+            const fabBtn = document.getElementById('fabBtn');
+            const bottomSheet = document.getElementById('bottomSheet');
+            const sheetOverlay = document.getElementById('sheetOverlay');
+
+            function toggleSheet() {
+                const isOpen = bottomSheet.classList.contains('show');
+                if (isOpen) {
+                    bottomSheet.classList.remove('show');
+                    sheetOverlay.classList.remove('show');
+                    document.body.style.overflow = '';
+                } else {
+                    bottomSheet.classList.add('show');
+                    sheetOverlay.classList.add('show');
+                    document.body.style.overflow = 'hidden';
+                }
+            }
+
+            fabBtn?.addEventListener('click', toggleSheet);
+            sheetOverlay?.addEventListener('click', toggleSheet);
+            {% endif %}
 
             const logDropdown = document.querySelector('.base-dropdown');
             const logMenu = logDropdown?.querySelector('.base-dropdown-content');
@@ -97,24 +175,24 @@
 
             // Toggle log dropdown
             logDropdown?.querySelector('.base-dropdown-btn')
-                .addEventListener('click', function (e) {
+                ?.addEventListener('click', function (e) {
                     e.stopPropagation();
                     logMenu.classList.toggle('show');
-                    profileMenu.classList.remove('show');
+                    profileMenu?.classList.remove('show');
                 });
 
             // Toggle profile dropdown
             profileDropdown?.querySelector('.base-profile-avatar')
-                .addEventListener('click', function (e) {
+                ?.addEventListener('click', function (e) {
                     e.stopPropagation();
                     profileMenu.classList.toggle('show');
-                    logMenu.classList.remove('show');
+                    logMenu?.classList.remove('show');
                 });
 
             // Close all on outside click
             document.addEventListener('click', function () {
-                logMenu.classList.remove('show');
-                profileMenu.classList.remove('show');
+                logMenu?.classList.remove('show');
+                profileMenu?.classList.remove('show');
             });
 
             document.addEventListener('wheel', function (e) {

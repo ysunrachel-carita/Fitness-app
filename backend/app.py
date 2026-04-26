@@ -2,6 +2,7 @@ from datetime import datetime, date, timedelta
 from collections import defaultdict
 from functools import wraps
 import os
+import time
 from uuid import uuid4
 from flask import jsonify
 from flask import Flask, render_template, request, session, redirect, url_for, flash
@@ -1017,7 +1018,7 @@ class PgWrapper:
             m = re.search(r"table_info\((.*?)\)", query)
             if m:
                 table_name = m.group(1).strip("'\"")
-                pg_query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}'"
+                pg_query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}' AND table_schema = current_schema()"
                 with self.conn.cursor() as cursor:
                     cursor.execute(pg_query)
                     rows = cursor.fetchall()
@@ -1071,6 +1072,19 @@ class PgWrapper:
                 
         return PgCursorWrapper(cursor, lastrowid)
 
+    def executemany(self, query, params_list):
+        pg_query = query.replace('?', '%s')
+        cursor = self.conn.cursor(cursor_factory=DictCursor)
+        try:
+            cursor.executemany(pg_query, params_list)
+        except Exception as e:
+            print(f"❌ DATABASE ERROR (executemany): {e}")
+            print(f"QUERY: {pg_query}")
+            self.conn.rollback()
+            raise e
+        self.conn.commit()
+        return PgCursorWrapper(cursor)
+
     def commit(self):
         self.conn.commit()
 
@@ -1092,8 +1106,20 @@ def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is not set")
-    conn = psycopg2.connect(database_url.strip())
-    return PgWrapper(conn)
+    
+    max_retries = 10
+    retry_delay = 3
+    for attempt in range(max_retries):
+        try:
+            conn = psycopg2.connect(database_url.strip())
+            return PgWrapper(conn)
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"⚠️ Database connection attempt {attempt + 1} failed ({type(e).__name__}): {e}. Retrying in {retry_delay}s...")
+                time.sleep(retry_delay)
+            else:
+                print(f"❌ Could not connect to database after {max_retries} attempts.")
+                raise e
 
 def get_all_exercises():
     conn = get_db()
@@ -1233,17 +1259,27 @@ def _migrate_exercise_sessions_to_fk():
         return
 
     # Ensure every exercise name used in sessions exists in exercises table
-    conn.execute("""
-        INSERT OR IGNORE INTO exercises (name, category, is_calorie)
-        SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other', FALSE
-        FROM exercise_sessions
-        WHERE exercise IS NOT NULL AND exercise != ''
-    """)
+    if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
+        conn.execute("""
+            INSERT INTO exercises (name, category, is_calorie)
+            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other', FALSE
+            FROM exercise_sessions
+            WHERE exercise IS NOT NULL AND exercise != ''
+            ON CONFLICT (name) DO NOTHING
+        """)
+    else:
+        conn.execute("""
+            INSERT OR IGNORE INTO exercises (name, category, is_calorie)
+            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other', FALSE
+            FROM exercise_sessions
+            WHERE exercise IS NOT NULL AND exercise != ''
+        """)
 
     conn.execute("PRAGMA foreign_keys = OFF")
-    conn.execute("""
+    id_type = "SERIAL PRIMARY KEY" if "postgresql" in str(os.environ.get("DATABASE_URL")).lower() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    conn.execute(f"""
         CREATE TABLE exercise_sessions_new (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id {id_type},
             user_id INTEGER NOT NULL,
             exercise_id INTEGER NOT NULL,
             notes TEXT,
@@ -1259,7 +1295,10 @@ def _migrate_exercise_sessions_to_fk():
         FROM exercise_sessions es
         JOIN exercises e ON %s = %s
     """ % (_sql_normalized_name('e.name'), _sql_normalized_name('es.exercise')))
-    conn.execute("DROP TABLE exercise_sessions")
+    if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
+        conn.execute("DROP TABLE exercise_sessions CASCADE")
+    else:
+        conn.execute("DROP TABLE exercise_sessions")
     conn.execute("ALTER TABLE exercise_sessions_new RENAME TO exercise_sessions")
     conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")
@@ -1376,14 +1415,14 @@ def init_db():
         except Exception:
             pass # Usually column already exists
 
-    _safe_alter("ALTER TABLE runs ADD COLUMN run_type TEXT NOT NULL DEFAULT 'Run'")
-    _safe_alter("ALTER TABLE user_profiles ADD COLUMN photo_path TEXT")
-    _safe_alter("ALTER TABLE users ADD COLUMN display_name TEXT")
-    _safe_alter("ALTER TABLE wods ADD COLUMN wod_type TEXT")
-    _safe_alter("ALTER TABLE wods ADD COLUMN time_cap_minutes INTEGER")
-    _safe_alter("ALTER TABLE wods ADD COLUMN emom_interval INTEGER")
-    _safe_alter("ALTER TABLE wods ADD COLUMN emom_duration INTEGER")
-    _safe_alter("ALTER TABLE exercise_sessions ADD COLUMN workout_session_id INTEGER")
+    _safe_alter("ALTER TABLE runs ADD COLUMN IF NOT EXISTS run_type TEXT NOT NULL DEFAULT 'Run'")
+    _safe_alter("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS photo_path TEXT")
+    _safe_alter("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT")
+    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS wod_type TEXT")
+    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS time_cap_minutes INTEGER")
+    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_interval INTEGER")
+    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_duration INTEGER")
+    _safe_alter("ALTER TABLE exercise_sessions ADD COLUMN IF NOT EXISTS workout_session_id INTEGER")
         
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS workout_sessions (
@@ -1782,7 +1821,7 @@ def dashboard():
             SELECT SUBSTR(date, 1, 10) AS workout_day
             FROM runs
             WHERE user_id = ? AND SUBSTR(date, 1, 10) BETWEEN ? AND ?
-        )
+        ) AS combined_workouts
         ''',
         (user_id, week_start_str, today_str, user_id, week_start_str, today_str, user_id, week_start_str, today_str)
     ).fetchone()
@@ -1901,7 +1940,8 @@ def dashboard():
     return render_template(
         "dashboard.html",
         activities=activities,
-        weekly_sessions=weekly_sessions
+        weekly_sessions=weekly_sessions,
+        page='home'
     )
 
 @app.route("/profile")
@@ -2839,7 +2879,8 @@ def workout_history():
         current_range=date_range,
         current_exercise=exercise_filter,
         exercises=ALL_EXERCISES,
-        filter_exercises=filter_exercises
+        filter_exercises=filter_exercises,
+        page='history'
     )
 
 
@@ -3225,7 +3266,8 @@ def lifts_history():
         prs=prs,
         exercises=exercises,
         current_range=date_range,
-        current_exercise=exercise_filter
+        current_exercise=exercise_filter,
+        page='history'
     )
 
 
@@ -3457,6 +3499,7 @@ def runs_history():
     return render_template('runs_history.html',
         grouped=grouped,
         current_range=date_range,
+        page='history'
     )
 
 
@@ -3568,6 +3611,96 @@ def delete_run(run_id):
         return redirect(url_for('log_run'))
     conn.close()
     return {"success": False, "error": "Run not found"}, 404
+
+
+@app.route('/wins')
+@login_required
+def wins():
+    conn = get_db()
+    user_id = session["user_id"]
+    
+    today = date.today()
+    start_of_week = today - timedelta(days=today.weekday())
+    start_of_last_week = start_of_week - timedelta(days=7)
+    seven_days_ago = today - timedelta(days=7)
+
+    wins_rows = conn.execute(
+        "SELECT id, category, entry, date FROM wins WHERE user_id = ? ORDER BY date DESC, id DESC",
+        (user_id,)
+    ).fetchall()
+    
+    streak_count = 0
+    groups = []
+    current_week_wins = []
+    last_week_wins = []
+    older_wins = defaultdict(list)
+    
+    for w in wins_rows:
+        win_dict = dict(w)
+        try:
+            win_date = datetime.strptime(win_dict['date'], '%Y-%m-%d').date()
+        except (ValueError, TypeError):
+            win_date = today # Fallback
+            
+        if win_date >= seven_days_ago:
+            streak_count += 1
+            
+        if win_date >= start_of_week:
+            current_week_wins.append(win_dict)
+        elif win_date >= start_of_last_week:
+            last_week_wins.append(win_dict)
+        else:
+            month_label = win_date.strftime('%B %Y')
+            older_wins[month_label].append(win_dict)
+            
+    if current_week_wins:
+        groups.append({'label': 'This week', 'entries': current_week_wins})
+    if last_week_wins:
+        groups.append({'label': 'Last week', 'entries': last_week_wins})
+        
+    # Sort older month labels (B Y) properly
+    sorted_months = sorted(older_wins.keys(), key=lambda l: datetime.strptime(l, '%B %Y'), reverse=True)
+    for label in sorted_months:
+        groups.append({'label': label, 'entries': older_wins[label]})
+        
+    conn.close()
+    return render_template('wins.html', 
+                         groups=groups, 
+                         streak_count=streak_count,
+                         today_str=today.isoformat(),
+                         page='wins')
+
+@app.route('/wins/create', methods=['POST'])
+@login_required
+def create_win():
+    user_id = session["user_id"]
+    category = request.form.get('category')
+    entry = request.form.get('entry')
+    date_str = request.form.get('date') or date.today().isoformat()
+    
+    if not category or not entry:
+        flash("Category and description are required", "error")
+        return redirect(url_for('wins'))
+        
+    conn = get_db()
+    conn.execute(
+        "INSERT INTO wins (user_id, category, entry, date) VALUES (?, ?, ?, ?)",
+        (user_id, category, entry, date_str)
+    )
+    conn.commit()
+    conn.close()
+    
+    return redirect(url_for('wins'))
+
+@app.route('/wins/<int:win_id>/delete', methods=['POST'])
+@login_required
+def delete_win(win_id):
+    user_id = session["user_id"]
+    conn = get_db()
+    conn.execute("DELETE FROM wins WHERE id = ? AND user_id = ?", (win_id, user_id))
+    conn.commit()
+    conn.close()
+    return redirect(url_for('wins'))
 
 
 @app.route('/progress')
@@ -3713,6 +3846,7 @@ def progress():
         selected_exercise=selected_exercise,
         selected_exercise_name=selected_exercise_name,
         progress_page_data=progress_page_data,
+        page='progress'
     )
 
 

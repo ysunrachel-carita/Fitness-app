@@ -77,7 +77,7 @@ resource "aws_instance" "app" {
               docker run -d \
                 --name web \
                 -p 80:5000 \
-                -e DATABASE_URL='postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}/fitness_db' \
+                -e DATABASE_URL='postgresql://${var.db_username}:${var.db_password}@${aws_db_instance.postgres.endpoint}/fitness_db?sslmode=require' \
                 ${var.container_image}
               
               echo "User Data script finished."
@@ -85,6 +85,16 @@ resource "aws_instance" "app" {
 
   tags = {
     Name = "${var.project_name}-app"
+  }
+}
+
+# Static IP (Elastic IP)
+resource "aws_eip" "app_eip" {
+  instance = aws_instance.app.id
+  domain   = "vpc"
+
+  tags = {
+    Name = "${var.project_name}-app-eip"
   }
 }
 

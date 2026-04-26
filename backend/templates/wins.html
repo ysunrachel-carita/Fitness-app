@@ -1,0 +1,359 @@
+{% extends "base.html" %}
+
+{% block title %}Wins{% endblock %}
+
+{% block extra_css %}
+<style>
+    .wins-page {
+        padding: 20px;
+        max-width: 600px;
+        margin: 0 auto;
+    }
+
+    .wins-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .streak-badge {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .streak-badge::before {
+        content: '🔥';
+    }
+
+    /* Add Entry Bar */
+    .add-win-bar {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        cursor: pointer;
+        margin-bottom: 32px;
+        transition: border-color 0.2s;
+    }
+
+    .add-win-bar:hover {
+        border-color: var(--primary-color);
+    }
+
+    .add-plus-btn {
+        width: 24px;
+        height: 24px;
+        background: #22c55e;
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 18px;
+    }
+
+    .add-placeholder {
+        color: var(--text-muted);
+        font-size: 15px;
+    }
+
+    /* Feed & Groups */
+    .win-group-label {
+        font-family: var(--font-display);
+        font-size: 13px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: var(--text-muted);
+        margin-bottom: 12px;
+        margin-top: 24px;
+    }
+
+    .win-card {
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-lg);
+        padding: 16px;
+        margin-bottom: 12px;
+        position: relative;
+        transition: transform 0.15s;
+    }
+
+    .win-card--latest {
+        border-left: 4px solid #22c55e;
+    }
+
+    .win-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+    }
+
+    .win-date {
+        font-size: 12px;
+        color: var(--text-muted);
+    }
+
+    .win-category {
+        font-size: 11px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 4px 8px;
+        border-radius: 6px;
+    }
+
+    /* Category Colors */
+    .cat-pr { background: #dcfce7; color: #166534; }
+    .cat-mindset { background: #f3e8ff; color: #6b21a8; }
+    .cat-recovery { background: #fef3c7; color: #92400e; }
+    .cat-race { background: #ffedd5; color: #9a3412; }
+
+    .win-text {
+        font-size: 15px;
+        line-height: 1.5;
+        color: var(--text-primary);
+    }
+
+    /* Modal Styling */
+    .modal-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.6);
+        backdrop-filter: blur(4px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 2000;
+        padding: 20px;
+    }
+
+    .modal-overlay.show {
+        display: flex;
+    }
+
+    .modal-content {
+        background: var(--bg-primary);
+        border-radius: var(--radius-lg);
+        width: 100%;
+        max-width: 450px;
+        padding: 24px;
+        box-shadow: var(--shadow-lg);
+        position: relative;
+    }
+
+    .modal-title {
+        font-family: var(--font-display);
+        font-size: 20px;
+        font-weight: 700;
+        margin-bottom: 20px;
+    }
+
+    .win-form textarea {
+        width: 100%;
+        min-height: 120px;
+        padding: 12px;
+        background: var(--bg-tertiary);
+        border: 1px solid var(--border-color);
+        border-radius: var(--radius-sm);
+        color: var(--text-primary);
+        font-family: var(--font-body);
+        font-size: 16px;
+        resize: none;
+        margin-bottom: 20px;
+    }
+
+    .category-selector {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+
+    .cat-pill {
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        border: 2px solid transparent;
+        transition: all 0.2s;
+        opacity: 0.6;
+    }
+
+    .cat-pill:hover {
+        opacity: 1;
+    }
+
+    .cat-pill.selected {
+        opacity: 1;
+        border-color: var(--primary-color);
+    }
+
+    .cat-pill.pr { background: #dcfce7; color: #166534; }
+    .cat-pill.mindset { background: #f3e8ff; color: #6b21a8; }
+    .cat-pill.recovery { background: #fef3c7; color: #92400e; }
+    .cat-pill.race { background: #ffedd5; color: #9a3412; }
+
+    .modal-actions {
+        display: flex;
+        gap: 12px;
+    }
+
+    .btn-cancel {
+        flex: 1;
+        background: var(--bg-secondary);
+        color: var(--text-secondary);
+    }
+
+    .btn-submit {
+        flex: 2;
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--text-muted);
+    }
+
+    .delete-win-btn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        background: transparent;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        padding: 4px;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+
+    .win-card:hover .delete-win-btn {
+        opacity: 1;
+    }
+
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="wins-page">
+    <div class="wins-header">
+        <h1 class="page-title">Wins</h1>
+        <div class="streak-badge">
+            {{ streak_count }} days logged
+        </div>
+    </div>
+
+    <div class="add-win-bar" id="addWinTrigger">
+        <div class="add-plus-btn">+</div>
+        <div class="add-placeholder">What went well today?</div>
+    </div>
+
+    {% if not groups %}
+    <div class="empty-state">
+        <p>No wins logged yet. Keep training and celebrate the small victories!</p>
+    </div>
+    {% else %}
+    <div class="wins-feed">
+        {% for group in groups %}
+        <div class="win-group">
+            <div class="win-group-label">{{ group.label }}</div>
+            {% for win in group.entries %}
+            <div class="win-card {% if loop.first and group.label == 'This week' %}win-card--latest{% endif %}">
+                <form action="/wins/{{ win.id }}/delete" method="POST" class="delete-form">
+                    <button type="submit" class="delete-win-btn" onclick="return confirm('Delete this win?')">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    </button>
+                </form>
+                <div class="win-card-header">
+                    <span class="win-category cat-{{ win.category|lower }}">{{ win.category }}</span>
+                    <span class="win-date">{{ win.date|format_short_date }}</span>
+                </div>
+                <div class="win-text">
+                    {{ win.entry }}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add Win Modal -->
+<div class="modal-overlay" id="winModal">
+    <div class="modal-content">
+        <h2 class="modal-title">Log a Win</h2>
+        <form action="/wins/create" method="POST" class="win-form" id="createWinForm">
+            <textarea name="entry" placeholder="I crushed my sets today..." required id="winEntryTextarea"></textarea>
+            
+            <div class="form-label">Category</div>
+            <div class="category-selector">
+                <div class="cat-pill pr selected" data-value="PR">PR</div>
+                <div class="cat-pill mindset" data-value="Mindset">Mindset</div>
+                <div class="cat-pill recovery" data-value="Recovery">Recovery</div>
+                <div class="cat-pill race" data-value="Race">Race</div>
+            </div>
+            <input type="hidden" name="category" id="categoryInput" value="PR">
+            <input type="hidden" name="date" value="{{ today_str }}">
+
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" id="closeModal">Cancel</button>
+                <button type="submit" class="btn btn-submit">Log Win</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const trigger = document.getElementById('addWinTrigger');
+    const modal = document.getElementById('winModal');
+    const closeModal = document.getElementById('closeModal');
+    const textarea = document.getElementById('winEntryTextarea');
+    const categoryPills = document.querySelectorAll('.cat-pill');
+    const categoryInput = document.getElementById('categoryInput');
+
+    trigger.addEventListener('click', () => {
+        modal.classList.add('show');
+        textarea.focus();
+    });
+
+    closeModal.addEventListener('click', () => {
+        modal.classList.remove('show');
+    });
+
+    modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.classList.remove('show');
+    });
+
+    categoryPills.forEach(pill => {
+        pill.addEventListener('click', () => {
+            categoryPills.forEach(p => p.classList.remove('selected'));
+            pill.classList.add('selected');
+            categoryInput.value = pill.dataset.value;
+        });
+    });
+});
+</script>
+{% endblock %}
