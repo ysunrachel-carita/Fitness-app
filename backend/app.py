@@ -19,6 +19,7 @@ load_dotenv()
 
 
 app = Flask(__name__)
+app.config['DB_ECHO'] = False
 print("🔥 APP STARTING")
 
 @app.route('/ping')
@@ -1256,7 +1257,7 @@ def _migrate_exercise_sessions_to_fk():
     cols = [row[1] for row in conn.execute("PRAGMA table_info(exercise_sessions)").fetchall()]
     if 'exercise' not in cols:
         conn.close()
-        return
+        return False
 
     # Ensure every exercise name used in sessions exists in exercises table
     if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
@@ -1303,6 +1304,7 @@ def _migrate_exercise_sessions_to_fk():
     conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")
     conn.close()
+    return True
 
 
 def _ensure_indexes():
@@ -1482,11 +1484,12 @@ def init_db():
     clean_up_duplicate_exercises()
 
     # Migrate exercise TEXT column to exercise_id FK (one-time, idempotent)
-    _migrate_exercise_sessions_to_fk()
+    migration_performed = _migrate_exercise_sessions_to_fk()
 
     # Re-run dedupe after migration because legacy session text can introduce
     # normalized duplicates that were not present before the FK rewrite.
-    clean_up_duplicate_exercises()
+    if migration_performed:
+        clean_up_duplicate_exercises()
 
     # Now that duplicates are collapsed, enforce uniqueness at the DB level
     # so no future code path can re-introduce a duplicate canonical_key.
@@ -1661,6 +1664,22 @@ def clean_up_duplicate_exercises():
     deletes the extras. Safe to run repeatedly.
     """
     conn = get_db()
+    
+    # Early-exit guard: check if any duplicates actually exist using SQL
+    # before doing a full table fetch and Python-side processing.
+    dupes = conn.execute('''
+        SELECT canonical_key, COUNT(*) as cnt 
+        FROM exercises 
+        WHERE canonical_key IS NOT NULL AND canonical_key != ''
+        GROUP BY canonical_key 
+        HAVING COUNT(*) > 1
+        LIMIT 1
+    ''').fetchone()
+    
+    if not dupes:
+        conn.close()
+        return
+
     try:
         exercises = conn.execute(
             "SELECT id, name, canonical_key FROM exercises ORDER BY id"
@@ -1837,12 +1856,21 @@ def dashboard():
         WHERE es.user_id = ? AND es.date BETWEEN ? AND ?
     ''', (user_id, week_start_str, today_str)).fetchall()
 
-    for lift in lifts_this_week:
-        all_sets = conn.execute('''
-            SELECT weight_kg, reps, order_index FROM set_entries
-            WHERE session_id = ?
+    session_ids = [l['id'] for l in lifts_this_week]
+    sets_by_session = defaultdict(list)
+    if session_ids:
+        placeholders = ','.join(['?'] * len(session_ids))
+        all_sets = conn.execute(f'''
+            SELECT session_id, weight_kg, reps, order_index 
+            FROM set_entries
+            WHERE session_id IN ({placeholders})
             ORDER BY order_index ASC
-        ''', (lift['id'],)).fetchall()
+        ''', session_ids).fetchall()
+        for s in all_sets:
+            sets_by_session[s['session_id']].append(s)
+
+    for lift in lifts_this_week:
+        all_sets = sets_by_session[lift['id']]
 
         best_set = max(all_sets, key=lambda s: s['weight_kg'] * (1 + s['reps'] / 30.0), default=None) if all_sets else None
         subtitle = f"{format_weight(best_set['weight_kg'])}kg × {best_set['reps']}" if best_set else "No sets logged"
@@ -1867,28 +1895,42 @@ def dashboard():
         WHERE user_id = ? AND date BETWEEN ? AND ?
     ''', (user_id, week_start_str, today_str)).fetchall()
 
+    workout_ids = [w['id'] for w in workouts_this_week]
+    groups_by_workout = defaultdict(list)
+    comps_by_group = defaultdict(list)
+
+    if workout_ids:
+        placeholders = ','.join(['?'] * len(workout_ids))
+        all_groups = conn.execute(f'''
+            SELECT id, workout_session_id, order_index, type, shared_weight_kg
+            FROM set_groups WHERE workout_session_id IN ({placeholders})
+            ORDER BY order_index ASC
+        ''', workout_ids).fetchall()
+        for g in all_groups:
+            groups_by_workout[g['workout_session_id']].append(g)
+        
+        group_ids = [g['id'] for g in all_groups]
+        if group_ids:
+            g_placeholders = ','.join(['?'] * len(group_ids))
+            all_comps = conn.execute(f'''
+                SELECT sc.set_group_id, e.name AS exercise, sc.reps, sc.weight_kg
+                FROM set_components sc
+                JOIN exercises e ON sc.exercise_id = e.id
+                WHERE sc.set_group_id IN ({g_placeholders})
+            ''', group_ids).fetchall()
+            for c in all_comps:
+                comps_by_group[c['set_group_id']].append(c)
+
     for w in workouts_this_week:
         title = w['type'] or 'Untitled Workout'
         subtitle = w['context'] or 'Workout'
         if w['context'] in ['AMRAP', 'For Time'] and w['time_cap_minutes']:
             subtitle += f" ({w['time_cap_minutes']} min)"
 
-        # Fetch groups and their components
-        groups = conn.execute('''
-            SELECT sg.id, sg.order_index, sg.type, sg.shared_weight_kg
-            FROM set_groups sg
-            WHERE sg.workout_session_id = ?
-            ORDER BY sg.order_index ASC
-        ''', (w['id'],)).fetchall()
-
+        groups = groups_by_workout[w['id']]
         groups_detail = []
         for g in groups:
-            comps = conn.execute('''
-                SELECT e.name AS exercise, sc.reps, sc.weight_kg
-                FROM set_components sc
-                JOIN exercises e ON sc.exercise_id = e.id
-                WHERE sc.set_group_id = ?
-            ''', (g['id'],)).fetchall()
+            comps = comps_by_group[g['id']]
             groups_detail.append([
                 {
                     'exercise': c['exercise'],
@@ -2843,7 +2885,7 @@ def workout_history():
 
         sessions.append({
             'id': row['id'],
-            'date': row['date'],
+            'date': _date_only(row['date']),
             'name': row['type'] or 'Untitled Workout',
             'notes': row['notes'],
             'context': row['context'],
@@ -3300,7 +3342,7 @@ def wods_history():
     # Group WODs by date
     grouped = defaultdict(list)
     for wod in wods:
-        day = wod['date'].split(' ')[0]
+        day = str(wod['date']).split(' ')[0]
         grouped[day].append(wod)
 
     conn.close()
@@ -3494,7 +3536,7 @@ def runs_history():
 
     grouped = defaultdict(list)
     for r in enriched:
-        grouped[r['date'].split(' ')[0]].append(r)
+        grouped[str(r['date']).split(' ')[0]].append(r)
 
     return render_template('runs_history.html',
         grouped=grouped,
@@ -3637,10 +3679,16 @@ def wins():
     
     for w in wins_rows:
         win_dict = dict(w)
-        try:
-            win_date = datetime.strptime(win_dict['date'], '%Y-%m-%d').date()
-        except (ValueError, TypeError):
-            win_date = today # Fallback
+        win_date = win_dict.get('date')
+        if isinstance(win_date, str):
+            try:
+                win_date = datetime.strptime(win_date, '%Y-%m-%d').date()
+            except (ValueError, TypeError):
+                win_date = today
+        elif isinstance(win_date, datetime):
+            win_date = win_date.date()
+        elif not isinstance(win_date, date):
+            win_date = today
             
         if win_date >= seven_days_ago:
             streak_count += 1
@@ -3853,7 +3901,6 @@ def progress():
 # Initialize database and load cache at startup
 try:
     init_db()
-    load_exercises_from_db()
 except Exception as e:
     print(f"⚠️ Could not initialize DB or load cache: {e}")
 
