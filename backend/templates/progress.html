@@ -359,74 +359,84 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawChart(values, lineEl, dotsEl) {
-        if (!values || !lineEl) return;
-        if (!lineEl || !dotsEl) return;
+        try {
+            if (!values || !lineEl) return;
+            if (!lineEl || !dotsEl) return;
 
-        const samples = Array.isArray(values) ? values.filter(function(value) {
-            return value !== null && value !== undefined && !Number.isNaN(value);
-        }) : [];
-        dotsEl.innerHTML = '';
+            const samples = Array.isArray(values) ? values.filter(function(value) {
+                return value !== null && value !== undefined && !Number.isNaN(value);
+            }) : [];
+            dotsEl.innerHTML = '';
 
-        const svg = lineEl.ownerSVGElement;
-        const viewBox = svg?.viewBox?.baseVal;
-        const width = viewBox?.width || 300;
-        const height = viewBox?.height || 120;
-        const leftPad = chartInsets.left;
-        const rightPad = chartInsets.right;
-        const topPad = chartInsets.top;
-        const bottomPad = chartInsets.bottom;
-        const usableWidth = Math.max(1, width - leftPad - rightPad);
-        const usableHeight = Math.max(1, height - topPad - bottomPad);
+            const svg = lineEl.ownerSVGElement;
+            const viewBox = svg?.viewBox?.baseVal;
+            const width = viewBox?.width || 300;
+            const height = viewBox?.height || 120;
+            const leftPad = chartInsets.left;
+            const rightPad = chartInsets.right;
+            const topPad = chartInsets.top;
+            const bottomPad = chartInsets.bottom;
+            const usableWidth = Math.max(1, width - leftPad - rightPad);
+            const usableHeight = Math.max(1, height - topPad - bottomPad);
 
-        lineEl.style.strokeDasharray = '';
-        lineEl.style.strokeDashoffset = '';
+            lineEl.style.strokeDasharray = '';
+            lineEl.style.strokeDashoffset = '';
 
-        if (!samples.length) {
-            lineEl.setAttribute('d', '');
-            return;
-        }
+            if (!samples.length) {
+                lineEl.setAttribute('d', '');
+                return;
+            }
 
-        const centerY = topPad + usableHeight / 2;
+            const centerY = topPad + usableHeight / 2;
 
-        if (samples.length === 1) {
-            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            dot.setAttribute('cx', width / 2);
-            dot.setAttribute('cy', centerY);
-            dot.setAttribute('r', '4');
-            dot.classList.add('chart-dot');
-            dotsEl.appendChild(dot);
-            lineEl.setAttribute('d', `M ${leftPad} ${centerY} L ${width - rightPad} ${centerY}`);
-            return;
-        }
+            if (samples.length === 1) {
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', width / 2);
+                dot.setAttribute('cy', centerY);
+                dot.setAttribute('r', '4');
+                dot.classList.add('chart-dot');
+                dotsEl.appendChild(dot);
+                lineEl.setAttribute('d', `M ${leftPad} ${centerY} L ${width - rightPad} ${centerY}`);
+                return;
+            }
 
-        const min = Math.min(...samples);
-        const max = Math.max(...samples);
-        const range = max - min;
-        const step = usableWidth / (samples.length - 1);
-        let path = '';
+            const min = Math.min(...samples);
+            const max = Math.max(...samples);
+            const range = max - min;
+            const step = usableWidth / (samples.length - 1);
+            let path = '';
 
-        samples.forEach(function(value, index) {
-            const x = leftPad + index * step;
-            const y = range === 0
-                ? centerY
-                : topPad + (1 - ((value - min) / range)) * usableHeight;
+            samples.forEach(function(value, index) {
+                const x = leftPad + index * step;
+                const y = range === 0
+                    ? centerY
+                    : topPad + (1 - ((value - min) / range)) * usableHeight;
 
-            path += (index === 0 ? 'M' : 'L') + `${x},${y} `;
+                path += (index === 0 ? 'M' : 'L') + `${x},${y} `;
 
-            const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-            dot.setAttribute('cx', x);
-            dot.setAttribute('cy', y);
-            dot.setAttribute('r', '3');
-            dot.classList.add('chart-dot');
-            dotsEl.appendChild(dot);
-        });
+                const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+                dot.setAttribute('cx', x);
+                dot.setAttribute('cy', y);
+                dot.setAttribute('r', '3');
+                dot.classList.add('chart-dot');
+                dotsEl.appendChild(dot);
+            });
 
-        lineEl.setAttribute('d', path.trim());
+            lineEl.setAttribute('d', path.trim());
 
-        const lineLength = lineEl.getTotalLength ? lineEl.getTotalLength() : null;
-        if (lineLength) {
-            lineEl.style.strokeDasharray = `${lineLength}`;
-            lineEl.style.strokeDashoffset = `${lineLength}`;
+            if (lineEl.getTotalLength) {
+                try {
+                    const lineLength = lineEl.getTotalLength();
+                    if (lineLength) {
+                        lineEl.style.strokeDasharray = `${lineLength}`;
+                        lineEl.style.strokeDashoffset = `${lineLength}`;
+                    }
+                } catch (e) {
+                    console.warn("Could not get line length for animation", e);
+                }
+            }
+        } catch (err) {
+            console.error("Error drawing chart:", err);
         }
     }
 
@@ -556,18 +566,25 @@ document.addEventListener('DOMContentLoaded', function() {
             chart.dataset.chartDates = JSON.stringify(exercise.chart_dates);
         }
 
-        drawChart(exercise.chart_values, line, dots);
-        if (line) {
-            const lineLength = line.getTotalLength ? line.getTotalLength() : null;
-            if (lineLength) {
-                line.style.strokeDasharray = `${lineLength}`;
-                line.style.strokeDashoffset = `${lineLength}`;
-                requestAnimationFrame(function() {
-                    line.style.strokeDashoffset = '0';
-                });
+        try {
+            drawChart(exercise.chart_values, line, dots);
+            if (line) {
+                try {
+                    const lineLength = line.getTotalLength ? line.getTotalLength() : null;
+                    if (lineLength) {
+                        line.style.strokeDasharray = `${lineLength}`;
+                        line.style.strokeDashoffset = `${lineLength}`;
+                        requestAnimationFrame(function() {
+                            line.style.strokeDashoffset = '0';
+                        });
+                    }
+                } catch (e) {}
             }
+            renderAxes(exercise.chart_values, exercise.chart_dates, heroYAxis, heroXAxis, chart);
+        } catch (err) {
+            console.error("Error rendering visualization:", err);
         }
-        renderAxes(exercise.chart_values, exercise.chart_dates, heroYAxis, heroXAxis, chart);
+        
         renderRmProfile(exercise.rm_profile);
         setActiveDropdown(exerciseKey);
     }
