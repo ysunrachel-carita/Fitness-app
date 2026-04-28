@@ -1442,7 +1442,7 @@ def init_db():
             id {id_type},
             user_id INTEGER NOT NULL,
             date TEXT NOT NULL,
-            type TEXT,
+            title TEXT,
             notes TEXT,
             context TEXT,
             time_cap_minutes INTEGER,
@@ -1907,7 +1907,7 @@ def dashboard():
 
     # 2. WORKOUTS (from workout_sessions)
     workouts_this_week = conn.execute('''
-        SELECT id, date, type, context, time_cap_minutes, notes
+        SELECT id, date, title, context, time_cap_minutes, notes
         FROM workout_sessions
         WHERE user_id = ? AND date BETWEEN ? AND ?
     ''', (user_id, week_start_str, today_str)).fetchall()
@@ -1939,7 +1939,7 @@ def dashboard():
                 comps_by_group[c['set_group_id']].append(c)
 
     for w in workouts_this_week:
-        title = w['type'] or 'Untitled Workout'
+        title = w['title'] or 'Untitled Workout'
         subtitle = w['context'] or 'Workout'
         if w['context'] in ['AMRAP', 'For Time'] and w['time_cap_minutes']:
             subtitle += f" ({w['time_cap_minutes']} min)"
@@ -2764,7 +2764,7 @@ def create_workout_session():
 
         ws_cursor = conn.execute(
             """INSERT INTO workout_sessions
-               (user_id, date, type, notes, context, time_cap_minutes, emom_interval, emom_duration)
+               (user_id, date, title, notes, context, time_cap_minutes, emom_interval, emom_duration)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
             (user_id, date_str, ws_type, notes, context, time_cap_minutes, emom_interval, emom_duration)
         )
@@ -2868,7 +2868,7 @@ def workout_history():
             exercise_clause = "AND 1=0"
 
     rows = conn.execute(f"""
-        SELECT ws.id, ws.date, ws.type, ws.notes, ws.created_at,
+        SELECT ws.id, ws.date, ws.title, ws.notes, ws.created_at,
                ws.context, ws.time_cap_minutes, ws.emom_interval, ws.emom_duration,
                COUNT(DISTINCT sg.id) AS group_count,
                COUNT(sc.id) AS component_count
@@ -2910,7 +2910,7 @@ def workout_history():
         sessions.append({
             'id': row['id'],
             'date': _date_only(row['date']),
-            'name': row['type'] or 'Untitled Workout',
+            'name': row['title'] or 'Untitled Workout',
             'notes': row['notes'],
             'context': row['context'],
             'time_cap_minutes': row['time_cap_minutes'],
@@ -3007,7 +3007,7 @@ def edit_workout_session(id):
 
     conn.execute(
         """UPDATE workout_sessions 
-           SET type = ?, notes = ?, date = ?, context = ?, time_cap_minutes = ?, emom_interval = ?, emom_duration = ? 
+           SET title = ?, notes = ?, date = ?, context = ?, time_cap_minutes = ?, emom_interval = ?, emom_duration = ? 
            WHERE id = ? AND user_id = ?""",
         (name, notes, date_str, context, time_cap_minutes, emom_interval, emom_duration, id, user_id)
     )
