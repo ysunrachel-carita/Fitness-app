@@ -185,16 +185,57 @@
 </template>
 
 <template id="component-template">
-    <div class="component-wrapper phase-1-comp" style="margin-bottom: 8px;">
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <div class="exercise-autocomplete-wrapper" style="flex: 3;">
+    <div class="component-wrapper phase-1-comp" style="margin-bottom: 16px; width: 100%; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 12px;">
+        <div class="unit-selector">
+            <span class="unit-pill active" data-unit="reps">reps</span>
+            <span class="unit-pill" data-unit="calories">cal</span>
+            <span class="unit-pill" data-unit="distance">dist</span>
+            <span class="unit-pill" data-unit="time">time</span>
+            <span class="unit-pill" data-unit="shuttle">shuttle</span>
+        </div>
+        <input type="hidden" class="comp-target-type" value="reps">
+        
+        <div style="display: flex; gap: 8px; align-items: flex-start; width: 100%;">
+            <div class="exercise-autocomplete-wrapper" style="flex: 2;">
                 <input type="text" class="form-input comp-exercise" placeholder="Exercise name" autocomplete="off" style="margin-bottom: 0;">
                 <div class="exercise-suggestions"></div>
             </div>
-            <div style="flex: 1;">
-                <input type="number" class="form-input comp-reps" placeholder="Reps" min="1" style="margin-bottom: 0;">
+            
+            <div class="comp-inputs-container">
+                <!-- Reps -->
+                <div class="unit-input-group active" data-unit="reps">
+                    <input type="number" class="form-input comp-reps" placeholder="Reps" min="1" style="margin-bottom: 0;">
+                </div>
+                
+                <!-- Calories -->
+                <div class="unit-input-group" data-unit="calories">
+                    <input type="number" class="form-input comp-calories" placeholder="Calories" min="1" style="margin-bottom: 0;">
+                    <span class="unit-label-inline">cal</span>
+                </div>
+                
+                <!-- Distance -->
+                <div class="unit-input-group" data-unit="distance">
+                    <input type="number" class="form-input comp-distance" placeholder="Distance" min="1" style="margin-bottom: 0;">
+                    <span class="unit-label-inline">m</span>
+                </div>
+                
+                <!-- Time -->
+                <div class="unit-input-group" data-unit="time">
+                    <input type="number" class="form-input comp-minutes" placeholder="min" min="0" style="margin-bottom: 0; width: 60px;">
+                    <span class="time-separator">:</span>
+                    <input type="number" class="form-input comp-seconds" placeholder="sec" min="0" max="59" style="margin-bottom: 0; width: 60px;">
+                </div>
+                
+                <!-- Shuttle -->
+                <div class="unit-input-group" data-unit="shuttle">
+                    <input type="number" class="form-input comp-shuttle-reps" placeholder="Reps" min="1" style="margin-bottom: 0; width: 60px;">
+                    <span class="shuttle-separator">×</span>
+                    <input type="number" class="form-input comp-shuttle-distance" placeholder="Dist" min="1" style="margin-bottom: 0; width: 70px;">
+                    <span class="unit-label-inline">m</span>
+                </div>
             </div>
-            <button type="button" class="delete-comp-btn" title="Remove">&times;</button>
+            
+            <button type="button" class="delete-comp-btn" title="Remove" style="margin-top: 8px;">&times;</button>
         </div>
     </div>
 </template>
@@ -249,6 +290,25 @@ document.addEventListener('DOMContentLoaded', () => {
         const input = wrapper.querySelector('.comp-exercise');
         const suggs = wrapper.querySelector('.exercise-suggestions');
         attachAutocomplete(input, suggs);
+        
+        // Unit selector logic
+        const pills = wrapper.querySelectorAll('.unit-pill');
+        const targetTypeInput = wrapper.querySelector('.comp-target-type');
+        const inputGroups = wrapper.querySelectorAll('.unit-input-group');
+        
+        pills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                pills.forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                const unit = pill.dataset.unit;
+                targetTypeInput.value = unit;
+                
+                inputGroups.forEach(group => {
+                    group.classList.toggle('active', group.dataset.unit === unit);
+                });
+            });
+        });
+
         wrapper.querySelector('.delete-comp-btn').addEventListener('click', () => wrapper.remove());
         return wrapper;
     }
@@ -314,12 +374,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const repeatCount = parseInt(document.getElementById('workout_repeat').value) || 1;
         const timeCap = document.getElementById('workout_time_cap').value;
         const groupData = [];
+        
         groupsContainer.querySelectorAll('.set-group-card').forEach((gn, idx) => {
             const comps = [];
             gn.querySelectorAll('.component-wrapper').forEach(cw => {
                 const name = cw.querySelector('.comp-exercise').value.trim();
-                const reps = cw.querySelector('.comp-reps').value;
-                if (name) comps.push({ name, reps });
+                if (!name) return;
+                
+                const targetType = cw.querySelector('.comp-target-type').value;
+                const compData = { name, targetType };
+                
+                if (targetType === 'reps') {
+                    compData.reps = cw.querySelector('.comp-reps').value;
+                    compData.display = `${compData.reps} reps`;
+                } else if (targetType === 'calories') {
+                    compData.calories = cw.querySelector('.comp-calories').value;
+                    compData.display = `${compData.calories} cal`;
+                } else if (targetType === 'distance') {
+                    compData.distance = cw.querySelector('.comp-distance').value;
+                    compData.display = `${compData.distance}m`;
+                } else if (targetType === 'time') {
+                    compData.minutes = cw.querySelector('.comp-minutes').value || 0;
+                    compData.seconds = cw.querySelector('.comp-seconds').value || 0;
+                    compData.display = `${compData.minutes}:${compData.seconds.toString().padStart(2, '0')}`;
+                } else if (targetType === 'shuttle') {
+                    compData.reps = cw.querySelector('.comp-shuttle-reps').value;
+                    compData.distance = cw.querySelector('.comp-shuttle-distance').value;
+                    compData.display = `${compData.reps} × ${compData.distance}m`;
+                }
+                
+                comps.push(compData);
             });
             const restMin = gn.querySelector('.comp-rest-min').value || 0;
             const restSec = gn.querySelector('.comp-rest-sec').value || 0;
@@ -328,7 +412,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // Summary
         let summaryHtml = '<strong>Structure:</strong> ' + groupData.map(g => 
-            `Group ${g.id+1} (${g.exercises.map(e => `${e.reps}x ${e.name}`).join(', ')}) + ${g.rest} rest`
+            `Group ${g.id+1} (${g.exercises.map(e => `${e.display} ${e.name}`).join(', ')}) + ${g.rest} rest`
         ).join(' → ') + ` [x${repeatCount} rounds]`;
         if (timeCap) summaryHtml += `<br><strong>Time cap:</strong> ${timeCap} min`;
         summaryContainer.innerHTML = summaryHtml;
@@ -336,7 +420,15 @@ document.addEventListener('DOMContentLoaded', () => {
         // Table
         const allUniqueExercises = [];
         groupData.forEach(g => g.exercises.forEach(e => {
-            if (!allUniqueExercises.some(ae => ae.name === e.name && ae.reps === e.reps)) {
+            if (!allUniqueExercises.some(ae => 
+                ae.name === e.name && 
+                ae.targetType === e.targetType && 
+                ae.reps === e.reps && 
+                ae.calories === e.calories && 
+                ae.distance === e.distance &&
+                ae.minutes === e.minutes &&
+                ae.seconds === e.seconds
+            )) {
                 allUniqueExercises.push(e);
             }
         }));
@@ -352,19 +444,51 @@ document.addEventListener('DOMContentLoaded', () => {
                     </tr>
                 </thead>
                 <tbody>
-                    ${allUniqueExercises.map(ex => `
-                        <tr data-exercise="${ex.name}" data-reps="${ex.reps}">
-                            <td class="ex-cell">
-                                <div class="ex-cell-name">${ex.name}</div>
-                                <div class="ex-cell-reps">${ex.reps} reps</div>
-                            </td>
-                            ${Array.from({length: repeatCount}, (_, i) => `
-                                <td class="round-col" data-round="${i+1}">
-                                    <input type="number" class="form-input r-weight" data-round="${i+1}" placeholder="0" step="0.5">
+                    ${allUniqueExercises.map(ex => {
+                        const dataAttrs = `
+                            data-exercise="${ex.name}" 
+                            data-target-type="${ex.targetType}"
+                            ${ex.reps ? `data-reps="${ex.reps}"` : ''}
+                            ${ex.calories ? `data-calories="${ex.calories}"` : ''}
+                            ${ex.distance ? `data-distance="${ex.distance}"` : ''}
+                            ${ex.minutes ? `data-minutes="${ex.minutes}"` : ''}
+                            ${ex.seconds ? `data-seconds="${ex.seconds}"` : ''}
+                        `;
+                        
+                        let inputHtml = (round) => {
+                            if (ex.targetType === 'reps') {
+                                return `<input type="number" class="form-input r-weight" data-round="${round}" placeholder="kg" step="0.5">`;
+                            } else if (ex.targetType === 'calories') {
+                                return `<div class="phase-2-input-wrapper"><input type="number" class="form-input r-calories" data-round="${round}" placeholder="0"><span class="unit-label-inline">cal</span></div>`;
+                            } else if (ex.targetType === 'distance') {
+                                return `<div class="phase-2-input-wrapper"><input type="number" class="form-input r-distance" data-round="${round}" placeholder="0"><span class="unit-label-inline">m</span></div>`;
+                            } else if (ex.targetType === 'time') {
+                                return `
+                                    <div class="phase-2-time-inputs">
+                                        <input type="number" class="form-input r-minutes" data-round="${round}" placeholder="min" min="0">
+                                        <span class="time-separator">:</span>
+                                        <input type="number" class="form-input r-seconds" data-round="${round}" placeholder="sec" min="0" max="59">
+                                    </div>`;
+                            } else if (ex.targetType === 'shuttle') {
+                                return `<div class="phase-2-input-wrapper"><input type="number" class="form-input r-shuttle-reps" data-round="${round}" placeholder="0"><span class="unit-label-inline">rounds</span></div>`;
+                            }
+                            return '';
+                        };
+
+                        return `
+                            <tr ${dataAttrs}>
+                                <td class="ex-cell">
+                                    <div class="ex-cell-name">${ex.name}</div>
+                                    <div class="ex-cell-reps">${ex.display}</div>
                                 </td>
-                            `).join('')}
-                        </tr>
-                    `).join('')}
+                                ${Array.from({length: repeatCount}, (_, i) => `
+                                    <td class="round-col" data-round="${i+1}">
+                                        ${inputHtml(i+1)}
+                                    </td>
+                                `).join('')}
+                            </tr>
+                        `;
+                    }).join('')}
                 </tbody>
             </table>
         `;
@@ -426,8 +550,25 @@ document.addEventListener('DOMContentLoaded', () => {
             const comps = [];
             gn.querySelectorAll('.component-wrapper').forEach(cw => {
                 const name = cw.querySelector('.comp-exercise').value.trim();
-                const reps = parseInt(cw.querySelector('.comp-reps').value) || null;
-                if (name) comps.push({ name, reps });
+                if (!name) return;
+
+                const targetType = cw.querySelector('.comp-target-type').value;
+                const compData = { name, targetType };
+
+                if (targetType === 'reps') {
+                    compData.reps = cw.querySelector('.comp-reps').value;
+                } else if (targetType === 'calories') {
+                    compData.calories = cw.querySelector('.comp-calories').value;
+                } else if (targetType === 'distance') {
+                    compData.distance = cw.querySelector('.comp-distance').value;
+                } else if (targetType === 'time') {
+                    compData.minutes = cw.querySelector('.comp-minutes').value;
+                    compData.seconds = cw.querySelector('.comp-seconds').value;
+                } else if (targetType === 'shuttle') {
+                    compData.reps = cw.querySelector('.comp-shuttle-reps').value;
+                    compData.distance = cw.querySelector('.comp-shuttle-distance').value;
+                }
+                comps.push(compData);
             });
             const restMin = parseInt(gn.querySelector('.comp-rest-min').value) || 0;
             const restSec = parseInt(gn.querySelector('.comp-rest-sec').value) || 0;
@@ -441,16 +582,46 @@ document.addEventListener('DOMContentLoaded', () => {
             groupStructure.forEach(gs => {
                 const components = [];
                 gs.exercises.forEach(ex => {
-                    const row = rows.find(tr => tr.dataset.exercise === ex.name && tr.dataset.reps == ex.reps);
+                    const row = rows.find(tr => 
+                        tr.dataset.exercise === ex.name && 
+                        tr.dataset.targetType === ex.targetType &&
+                        (ex.reps ? tr.dataset.reps == ex.reps : true) &&
+                        (ex.calories ? tr.dataset.calories == ex.calories : true) &&
+                        (ex.distance ? tr.dataset.distance == ex.distance : true) &&
+                        (ex.minutes ? tr.dataset.minutes == ex.minutes : true) &&
+                        (ex.seconds ? tr.dataset.seconds == ex.seconds : true)
+                    );
+                    
                     if (row) {
                         const roundToPull = sameWeight ? 1 : r;
-                        const weightInput = row.querySelector(`.r-weight[data-round="${roundToPull}"]`);
-                        const w = weightInput ? parseFloat(weightInput.value) : NaN;
-                        components.push({
+                        const compPayload = {
                             exercise: ex.name,
-                            weight_kg: isNaN(w) ? null : w * conv,
-                            reps: ex.reps
-                        });
+                            target_type: ex.targetType
+                        };
+
+                        if (ex.targetType === 'reps') {
+                            const weightInput = row.querySelector(`.r-weight[data-round="${roundToPull}"]`);
+                            const w = weightInput ? parseFloat(weightInput.value) : NaN;
+                            compPayload.weight_kg = isNaN(w) ? null : w * conv;
+                            compPayload.reps = parseInt(ex.reps);
+                        } else if (ex.targetType === 'calories') {
+                            const calInput = row.querySelector(`.r-calories[data-round="${roundToPull}"]`);
+                            compPayload.calories = calInput ? parseInt(calInput.value) : null;
+                        } else if (ex.targetType === 'distance') {
+                            const distInput = row.querySelector(`.r-distance[data-round="${roundToPull}"]`);
+                            compPayload.distance_meters = distInput ? parseInt(distInput.value) : null;
+                        } else if (ex.targetType === 'time') {
+                            const minInput = row.querySelector(`.r-minutes[data-round="${roundToPull}"]`);
+                            const secInput = row.querySelector(`.r-seconds[data-round="${roundToPull}"]`);
+                            compPayload.minutes = minInput ? parseInt(minInput.value) : 0;
+                            compPayload.seconds = secInput ? parseInt(secInput.value) : 0;
+                        } else if (ex.targetType === 'shuttle') {
+                            const shuttleRepsInput = row.querySelector(`.r-shuttle-reps[data-round="${roundToPull}"]`);
+                            compPayload.reps = shuttleRepsInput ? parseInt(shuttleRepsInput.value) : null;
+                            compPayload.distance_meters = parseInt(ex.distance);
+                        }
+                        
+                        components.push(compPayload);
                     }
                 });
                 if (components.length > 0) {

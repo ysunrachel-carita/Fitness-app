@@ -285,9 +285,18 @@ document.addEventListener('DOMContentLoaded', function() {
             xLabels = [labels[0], labels[middleIndex], labels[labels.length - 1]];
         }
 
-        xAxisEl.style.gridTemplateColumns = `repeat(${xLabels.length}, minmax(0, 1fr))`;
-        xAxisEl.innerHTML = xLabels.map(function(label) {
-            return `<span class="progress-chart-axis__label">${label}</span>`;
+        const chartWidth = viewBoxWidth || 300;
+        const leftP = chartInsets.left;
+        const rightP = chartInsets.right;
+
+        xAxisEl.innerHTML = xLabels.map(function(label, i) {
+            let x;
+            if (i === 0) x = leftP;
+            else if (i === xLabels.length - 1) x = chartWidth - rightP;
+            else x = chartWidth / 2;
+            
+            const percent = (x / chartWidth) * 100;
+            return `<span class="progress-chart-axis__label" style="left: ${percent}%;">${label}</span>`;
         }).join('');
     }
 

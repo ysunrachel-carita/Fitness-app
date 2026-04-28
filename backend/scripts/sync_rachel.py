@@ -86,13 +86,14 @@ def sync_rachel_workouts():
                     render_cur.execute("""
                         INSERT INTO set_components (
                             set_group_id, exercise_id, reps, weight_kg, rpe, notes, 
-                            duration_seconds, distance_meters, load_type, load_value
+                            time_seconds, distance_meters, calories, height_inch, target_type
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """, (
                         new_group_id, render_ex_id, comp['reps'], comp['weight_kg'],
-                        comp['rpe'], comp['notes'], comp['duration_seconds'],
-                        comp['distance_meters'], comp['load_type'], comp['load_value']
+                        comp['rpe'], comp['notes'], comp['time_seconds'],
+                        comp['distance_meters'], comp.get('calories'), 
+                        comp.get('height_inch'), comp.get('target_type', 'reps')
                     ))
 
         render_conn.commit()

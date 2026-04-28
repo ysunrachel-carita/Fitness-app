@@ -20,8 +20,8 @@ TABLES_TO_COMPARE = [
     "workout_sessions",
     "set_groups",
     "set_components",
-    "exercise_sessions",
-    "set_entries",
+    "lift_sessions",
+    "lift_sets",
     "runs",
     "wods",
     "user_profiles"
@@ -40,7 +40,9 @@ def fetch_table_data(conn, table_name):
     try:
         cursor.execute(f"SELECT * FROM {table_name}")
         rows = cursor.fetchall()
-        return {row['id']: dict(row) for row in rows}
+        # Handle user_profiles which uses user_id as PK
+        key_col = 'user_id' if table_name == 'user_profiles' else 'id'
+        return {row[key_col]: dict(row) for row in rows}
     except Exception as e:
         print(f"Error fetching data from {table_name}: {e}")
         return {}

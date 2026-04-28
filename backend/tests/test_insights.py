@@ -1,7 +1,11 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import sqlite3
 import unittest
 from datetime import datetime, timedelta
-from insights import weekly_volume_spike, recovery_flags, pr_staleness
+from core.insights import weekly_volume_spike, recovery_flags, pr_staleness
 
 class TestInsights(unittest.TestCase):
     def setUp(self):

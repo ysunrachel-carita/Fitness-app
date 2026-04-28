@@ -307,3 +307,11 @@
     border-top: 1px solid var(--border-color);
     padding-top: 8px;
 }
+.dashboard-actions {
+    margin-top: 32px;
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+}

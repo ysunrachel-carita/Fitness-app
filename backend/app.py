@@ -32,7 +32,7 @@ def api_exercises():
 
 @app.route('/api/insights/<int:user_id>')
 def api_insights(user_id):
-    from insights import weekly_volume_spike, recovery_flags, pr_staleness
+    from core.insights import weekly_volume_spike, recovery_flags, pr_staleness
     conn = get_db()
     try:
         results = {
@@ -245,7 +245,7 @@ def _enrich_session_record(session):
 def serialize_progress_lift(session):
     return {
         'id': session['id'],
-        'session_id': session['id'],
+        'lift_session_id': session['id'],
         'exercise': session['exercise'],
         'exercise_label': session['exercise'].title(),
         'weight_kg': session.get('weight_kg'),
@@ -540,7 +540,7 @@ def build_pr_gallery(sessions):
                 'sets': 1,
                 'session_set_count': session.get('set_count', len(session.get('sets', []))),
                 'notes': set_entry.get('notes') or session.get('notes'),
-                'session_id': session['id'],
+                'lift_session_id': session['id'],
                 'set_order_index': set_entry.get('order_index', 0),
                 'value': float(rm_value),
             }
@@ -633,20 +633,20 @@ def migrate_legacy_lifts_to_sessions(conn):
 
         cursor = conn.execute(
             """
-            INSERT INTO exercise_sessions (user_id, exercise, notes, date, created_at)
+            INSERT INTO lift_sessions (user_id, exercise, notes, date, created_at)
             VALUES (?, ?, ?, ?, ?)
             """,
             (row['user_id'], row['exercise'], row['notes'], session_date, created_at)
         )
-        session_id = cursor.lastrowid
+        lift_session_id = cursor.lastrowid
 
         for order_index in range(set_count):
             conn.execute(
                 """
-                INSERT INTO set_entries (session_id, weight_kg, reps, order_index, rpe, notes)
+                INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (session_id, weight_value, reps_value, order_index, None, None)
+                (lift_session_id, weight_value, reps_value, order_index, None, None)
             )
 
     conn.execute("DROP TABLE lifts")
@@ -655,7 +655,7 @@ def migrate_legacy_lifts_to_sessions(conn):
 def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=None, order_desc=True):
     query = """
         SELECT es.id, es.user_id, e.name as exercise, es.notes, es.date, es.created_at
-        FROM exercise_sessions es
+        FROM lift_sessions es
         JOIN exercises e ON es.exercise_id = e.id
         WHERE es.user_id = ?
     """
@@ -680,23 +680,23 @@ def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=Non
     if not session_rows:
         return []
 
-    session_ids = [row['id'] for row in session_rows]
-    placeholders = ','.join(['?'] * len(session_ids))
+    lift_session_ids = [row['id'] for row in session_rows]
+    placeholders = ','.join(['?'] * len(lift_session_ids))
     set_rows = conn.execute(
         f"""
-        SELECT session_id, id as set_id, weight_kg, reps, order_index, rpe, notes
-        FROM set_entries
-        WHERE session_id IN ({placeholders})
-        ORDER BY session_id {'DESC' if order_desc else 'ASC'}, order_index ASC
+        SELECT lift_session_id, id as set_id, weight_kg, reps, order_index, rpe, notes
+        FROM lift_sets
+        WHERE lift_session_id IN ({placeholders})
+        ORDER BY lift_session_id {'DESC' if order_desc else 'ASC'}, order_index ASC
         """,
-        session_ids,
+        lift_session_ids,
     ).fetchall()
 
     sets_by_session = defaultdict(list)
     for set_row in set_rows:
-        sets_by_session[set_row['session_id']].append({
+        sets_by_session[set_row['lift_session_id']].append({
             'id': set_row['set_id'],
-            'session_id': set_row['session_id'],
+            'lift_session_id': set_row['lift_session_id'],
             'weight_kg': set_row['weight_kg'],
             'reps': set_row['reps'],
             'order_index': set_row['order_index'],
@@ -783,7 +783,7 @@ def fetch_workout_sessions_as_lifts(conn, user_id, date_range=None, limit=None, 
             if w is not None and r is not None and float(w) > 0 and int(r) > 0:
                 grouped[key]['sets'].append({
                     'id': None,
-                    'session_id': None,
+                    'lift_session_id': None,
                     'weight_kg': float(w),
                     'reps': int(r),
                     'order_index': 0,
@@ -814,10 +814,10 @@ def fetch_workout_sessions_as_lifts(conn, user_id, date_range=None, limit=None, 
     return sessions
 
 
-def fetch_session_by_id(conn, session_id, user_id):
+def fetch_session_by_id(conn, lift_session_id, user_id):
     sessions = fetch_user_sessions(conn, user_id, limit=None, order_desc=True)
     for session in sessions:
-        if session['id'] == session_id:
+        if session['id'] == lift_session_id:
             return session
     return None
 
@@ -1112,7 +1112,15 @@ def get_db():
     retry_delay = 3
     for attempt in range(max_retries):
         try:
+            # Mask password in logs
+            masked_url = database_url
+            if "@" in database_url:
+                parts = database_url.split("@")
+                masked_url = parts[0].split(":")[0] + ":****@" + parts[1]
+            
+            print(f"📡 Connecting to database (attempt {attempt + 1})...")
             conn = psycopg2.connect(database_url.strip())
+            print("✅ Database connected successfully.")
             return PgWrapper(conn)
         except Exception as e:
             if attempt < max_retries - 1:
@@ -1120,6 +1128,7 @@ def get_db():
                 time.sleep(retry_delay)
             else:
                 print(f"❌ Could not connect to database after {max_retries} attempts.")
+                print(f"DATABASE_URL used: {masked_url}")
                 raise e
 
 def get_all_exercises():
@@ -1130,7 +1139,7 @@ def get_all_exercises():
 
 def get_calorie_exercises():
     conn = get_db()
-    exercises = [row[0] for row in conn.execute("SELECT name FROM exercises WHERE is_calorie = TRUE ORDER BY name").fetchall()]
+    exercises = [row[0] for row in conn.execute("SELECT name FROM exercises ORDER BY name").fetchall()]
     conn.close()
     return exercises
 
@@ -1189,7 +1198,7 @@ def load_exercises_from_db():
     conn = get_db()
     try:
         rows = conn.execute(
-            "SELECT name, category, is_calorie, canonical_key "
+            "SELECT name, category, canonical_key "
             "FROM exercises ORDER BY category, name"
         ).fetchall()
     finally:
@@ -1207,8 +1216,6 @@ def load_exercises_from_db():
             continue
         by_key[key] = name
         all_names.append(name)
-        if row['is_calorie']:
-            calorie_names.append(name)
         by_category.setdefault(row['category'], []).append(name)
 
     EXERCISE_BY_KEY = by_key
@@ -1240,9 +1247,9 @@ def resolve_exercise(conn, user_input):
 
     display_name = _friendly_display_name(user_input) or key
     cursor = conn.execute(
-        'INSERT INTO exercises (name, category, is_calorie, canonical_key) '
-        'VALUES (?, ?, ?, ?)',
-        (display_name, 'Other', False, key),
+        'INSERT INTO exercises (name, category, canonical_key) '
+        'VALUES (?, ?, ?)',
+        (display_name, 'Other', key),
     )
     # Incrementally refresh the in-memory caches so the next lookup is a cache hit.
     EXERCISE_BY_KEY[key] = display_name
@@ -1251,10 +1258,10 @@ def resolve_exercise(conn, user_input):
     return cursor.lastrowid, display_name
 
 
-def _migrate_exercise_sessions_to_fk():
-    """One-time: replace exercise TEXT column with exercise_id FK on exercise_sessions."""
+def _migrate_lift_sessions_to_fk():
+    """One-time: replace exercise TEXT column with exercise_id FK on lift_sessions."""
     conn = get_db()
-    cols = [row[1] for row in conn.execute("PRAGMA table_info(exercise_sessions)").fetchall()]
+    cols = [row[1] for row in conn.execute("PRAGMA table_info(lift_sessions)").fetchall()]
     if 'exercise' not in cols:
         conn.close()
         return False
@@ -1262,24 +1269,24 @@ def _migrate_exercise_sessions_to_fk():
     # Ensure every exercise name used in sessions exists in exercises table
     if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
         conn.execute("""
-            INSERT INTO exercises (name, category, is_calorie)
-            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other', FALSE
-            FROM exercise_sessions
+            INSERT INTO exercises (name, category)
+            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other'
+            FROM lift_sessions
             WHERE exercise IS NOT NULL AND exercise != ''
             ON CONFLICT (name) DO NOTHING
         """)
     else:
         conn.execute("""
-            INSERT OR IGNORE INTO exercises (name, category, is_calorie)
-            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other', FALSE
-            FROM exercise_sessions
+            INSERT OR IGNORE INTO exercises (name, category)
+            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other'
+            FROM lift_sessions
             WHERE exercise IS NOT NULL AND exercise != ''
         """)
 
     conn.execute("PRAGMA foreign_keys = OFF")
     id_type = "SERIAL PRIMARY KEY" if "postgresql" in str(os.environ.get("DATABASE_URL")).lower() else "INTEGER PRIMARY KEY AUTOINCREMENT"
     conn.execute(f"""
-        CREATE TABLE exercise_sessions_new (
+        CREATE TABLE lift_sessions_new (
             id {id_type},
             user_id INTEGER NOT NULL,
             exercise_id INTEGER NOT NULL,
@@ -1291,16 +1298,16 @@ def _migrate_exercise_sessions_to_fk():
         )
     """)
     conn.execute("""
-        INSERT INTO exercise_sessions_new (id, user_id, exercise_id, notes, date, created_at)
+        INSERT INTO lift_sessions_new (id, user_id, exercise_id, notes, date, created_at)
         SELECT es.id, es.user_id, e.id, es.notes, es.date, es.created_at
-        FROM exercise_sessions es
+        FROM lift_sessions es
         JOIN exercises e ON %s = %s
     """ % (_sql_normalized_name('e.name'), _sql_normalized_name('es.exercise')))
     if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
-        conn.execute("DROP TABLE exercise_sessions CASCADE")
+        conn.execute("DROP TABLE lift_sessions CASCADE")
     else:
-        conn.execute("DROP TABLE exercise_sessions")
-    conn.execute("ALTER TABLE exercise_sessions_new RENAME TO exercise_sessions")
+        conn.execute("DROP TABLE lift_sessions")
+    conn.execute("ALTER TABLE lift_sessions_new RENAME TO lift_sessions")
     conn.commit()
     conn.execute("PRAGMA foreign_keys = ON")
     conn.close()
@@ -1310,17 +1317,19 @@ def _migrate_exercise_sessions_to_fk():
 def _ensure_indexes():
     """Create performance indexes idempotently."""
     conn = get_db()
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_set_entries_session_id ON set_entries(session_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON exercise_sessions(user_id)")
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_session_order ON set_entries(session_id, order_index)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_lift_sets_lift_session_id ON lift_sets(lift_session_id)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON lift_sessions(user_id)")
+    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_session_order ON lift_sets(lift_session_id, order_index)")
     conn.commit()
     conn.close()
 
 
 def init_db():
     conn = get_db()
-    # Use SERIAL for Postgres, AUTOINCREMENT for SQLite
-    id_type = "SERIAL PRIMARY KEY" if "postgresql" in str(os.environ.get("DATABASE_URL")).lower() else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    db_url = str(os.environ.get("DATABASE_URL", "")).lower()
+    is_postgres = "postgres" in db_url
+    id_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
+    print(f"ℹ️ DB Type: {'Postgres' if is_postgres else 'SQLite'}")
 
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS users (
@@ -1331,26 +1340,29 @@ def init_db():
         )
     """)
     conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS exercise_sessions (
+        CREATE TABLE IF NOT EXISTS lift_sessions (
             id {id_type},
             user_id INTEGER NOT NULL,
-            exercise TEXT NOT NULL,
+            exercise_id INTEGER NOT NULL,
             notes TEXT,
             date TEXT NOT NULL,
             created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
+            workout_session_id INTEGER,
+            FOREIGN KEY(user_id) REFERENCES users(id),
+            FOREIGN KEY(exercise_id) REFERENCES exercises(id),
+            FOREIGN KEY(workout_session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE
         )
     """)
     conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS set_entries (
+        CREATE TABLE IF NOT EXISTS lift_sets (
             id {id_type},
-            session_id INTEGER NOT NULL,
+            lift_session_id INTEGER NOT NULL,
             weight_kg REAL NOT NULL,
             reps INTEGER NOT NULL,
             order_index INTEGER NOT NULL,
             rpe REAL,
             notes TEXT,
-            FOREIGN KEY(session_id) REFERENCES exercise_sessions(id) ON DELETE CASCADE
+            FOREIGN KEY(lift_session_id) REFERENCES lift_sessions(id) ON DELETE CASCADE
         )
     """)
     if _table_exists(conn, 'lifts'):
@@ -1361,7 +1373,6 @@ def init_db():
             id {id_type},
             name TEXT UNIQUE NOT NULL,
             category TEXT NOT NULL,
-            is_calorie BOOLEAN DEFAULT FALSE,
             canonical_key TEXT
         )
     """)
@@ -1401,7 +1412,7 @@ def init_db():
             id {id_type},
             user_id INTEGER NOT NULL,
             distance_km REAL NOT NULL,
-            duration_seconds INTEGER NOT NULL,
+            time_seconds INTEGER NOT NULL,
             unit TEXT NOT NULL DEFAULT 'km',
             run_type TEXT NOT NULL DEFAULT 'Run',
             date TEXT NOT NULL,
@@ -1424,7 +1435,7 @@ def init_db():
     _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS time_cap_minutes INTEGER")
     _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_interval INTEGER")
     _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_duration INTEGER")
-    _safe_alter("ALTER TABLE exercise_sessions ADD COLUMN IF NOT EXISTS workout_session_id INTEGER")
+    _safe_alter("ALTER TABLE lift_sessions ADD COLUMN IF NOT EXISTS workout_session_id INTEGER")
         
     conn.execute(f"""
         CREATE TABLE IF NOT EXISTS workout_sessions (
@@ -1463,10 +1474,11 @@ def init_db():
             weight_kg REAL,
             rpe REAL,
             notes TEXT,
-            duration_seconds INTEGER,
+            time_seconds INTEGER,
             distance_meters REAL,
-            load_type TEXT,
-            load_value REAL,
+            calories REAL,
+            height_inch REAL,
+            target_type TEXT NOT NULL,
             FOREIGN KEY (set_group_id) REFERENCES set_groups(id) ON DELETE CASCADE,
             FOREIGN KEY (exercise_id) REFERENCES exercises(id)
         )
@@ -1484,7 +1496,7 @@ def init_db():
     clean_up_duplicate_exercises()
 
     # Migrate exercise TEXT column to exercise_id FK (one-time, idempotent)
-    migration_performed = _migrate_exercise_sessions_to_fk()
+    migration_performed = _migrate_lift_sessions_to_fk()
 
     # Re-run dedupe after migration because legacy session text can introduce
     # normalized duplicates that were not present before the FK rewrite.
@@ -1645,11 +1657,11 @@ def populate_exercises_if_needed():
                 if not key or key in seen_keys:
                     continue
                 seen_keys.add(key)
-                rows.append((name, category, key in calorie_keys, key))
+                rows.append((name, category, key))
 
         conn.executemany(
-            "INSERT INTO exercises (name, category, is_calorie, canonical_key) "
-            "VALUES (?, ?, ?, ?)",
+            "INSERT INTO exercises (name, category, canonical_key) "
+            "VALUES (?, ?, ?)",
             rows,
         )
         conn.commit()
@@ -1659,7 +1671,7 @@ def populate_exercises_if_needed():
 def clean_up_duplicate_exercises():
     """Collapse rows that share a canonical_key into a single row.
 
-    Keeps the lowest id per key, repoints exercise_sessions.exercise_id to
+    Keeps the lowest id per key, repoints lift_sessions.exercise_id to
     that survivor, writes canonical_key on the survivor if missing, and
     deletes the extras. Safe to run repeatedly.
     """
@@ -1706,7 +1718,7 @@ def clean_up_duplicate_exercises():
             duplicate_ids = [row['id'] for row in rows[1:]]
             placeholders = ','.join('?' for _ in duplicate_ids)
             conn.execute(
-                f"UPDATE exercise_sessions SET exercise_id = ? "
+                f"UPDATE lift_sessions SET exercise_id = ? "
                 f"WHERE exercise_id IN ({placeholders})",
                 [keep_id, *duplicate_ids],
             )
@@ -1830,7 +1842,7 @@ def dashboard():
         SELECT COUNT(DISTINCT workout_day) AS weekly_sessions
         FROM (
             SELECT SUBSTR(date, 1, 10) AS workout_day
-            FROM exercise_sessions
+            FROM lift_sessions
             WHERE user_id = ? AND SUBSTR(date, 1, 10) BETWEEN ? AND ?
             UNION
             SELECT SUBSTR(date, 1, 10) AS workout_day
@@ -1848,32 +1860,37 @@ def dashboard():
 
     activities = []
 
-    # 1. LIFTS (from exercise_sessions)
+    # 1. LIFTS (from lift_sessions)
     lifts_this_week = conn.execute('''
         SELECT es.id, es.date, e.name as title, es.notes
-        FROM exercise_sessions es
+        FROM lift_sessions es
         JOIN exercises e ON es.exercise_id = e.id
         WHERE es.user_id = ? AND es.date BETWEEN ? AND ?
     ''', (user_id, week_start_str, today_str)).fetchall()
 
-    session_ids = [l['id'] for l in lifts_this_week]
+    lift_session_ids = [l['id'] for l in lifts_this_week]
     sets_by_session = defaultdict(list)
-    if session_ids:
-        placeholders = ','.join(['?'] * len(session_ids))
+    if lift_session_ids:
+        placeholders = ','.join(['?'] * len(lift_session_ids))
         all_sets = conn.execute(f'''
-            SELECT session_id, weight_kg, reps, order_index 
-            FROM set_entries
-            WHERE session_id IN ({placeholders})
+            SELECT lift_session_id, weight_kg, reps, order_index 
+            FROM lift_sets
+            WHERE lift_session_id IN ({placeholders})
             ORDER BY order_index ASC
-        ''', session_ids).fetchall()
+        ''', lift_session_ids).fetchall()
         for s in all_sets:
-            sets_by_session[s['session_id']].append(s)
+            sets_by_session[s['lift_session_id']].append(s)
 
     for lift in lifts_this_week:
         all_sets = sets_by_session[lift['id']]
 
-        best_set = max(all_sets, key=lambda s: s['weight_kg'] * (1 + s['reps'] / 30.0), default=None) if all_sets else None
-        subtitle = f"{format_weight(best_set['weight_kg'])}kg × {best_set['reps']}" if best_set else "No sets logged"
+        # Filter out sets with missing weight or reps to avoid crashes in max()
+        valid_sets = [s for s in all_sets if s.get('weight_kg') is not None and s.get('reps') is not None]
+        best_set = max(valid_sets, key=lambda s: float(s['weight_kg']) * (1 + int(s['reps']) / 30.0), default=None) if valid_sets else None
+        
+        weight_val = best_set['weight_kg'] if best_set else None
+        reps_val = best_set['reps'] if best_set else None
+        subtitle = f"{format_weight(weight_val)}kg × {reps_val}" if best_set else "No sets logged"
 
         sets_detail = [
             {'set_num': i + 1, 'weight': format_weight(s['weight_kg']), 'reps': s['reps']}
@@ -1950,7 +1967,7 @@ def dashboard():
 
     # 3. RUNS (from runs)
     runs_this_week = conn.execute('''
-        SELECT id, date, run_type, distance_km, duration_seconds, unit, notes
+        SELECT id, date, run_type, distance_km, time_seconds, unit, notes
         FROM runs
         WHERE user_id = ? AND date BETWEEN ? AND ?
     ''', (user_id, week_start_str, today_str)).fetchall()
@@ -1958,8 +1975,8 @@ def dashboard():
     for r in runs_this_week:
         unit = dict(r).get('unit', 'km')
         dist = _format_distance(r['distance_km'], unit)
-        dur = _format_duration(r['duration_seconds'])
-        pace = _format_pace(r['duration_seconds'], r['distance_km'], unit)
+        dur = _format_duration(r['time_seconds'])
+        pace = _format_pace(r['time_seconds'], r['distance_km'], unit)
 
         activities.append({
             'type': 'run',
@@ -2305,23 +2322,23 @@ def canonical(s):
 
 
 
-def _format_pace(duration_seconds, distance_km, unit='km'):
+def _format_pace(time_seconds, distance_km, unit='km'):
     """Returns pace string like '5:32 /km' or '8:54 /mi'."""
-    if not distance_km or distance_km <= 0 or not duration_seconds or duration_seconds <= 0:
+    if not distance_km or distance_km <= 0 or not time_seconds or time_seconds <= 0:
         return '-'
     distance_unit = (distance_km / 1.60934) if unit == 'mi' else distance_km
     if distance_unit <= 0:
         return '-'
-    pace_sec = duration_seconds / distance_unit
+    pace_sec = time_seconds / distance_unit
     minutes = int(pace_sec // 60)
     seconds = int(pace_sec % 60)
     return f"{minutes}:{seconds:02d} /{unit}"
 
 
-def _format_duration(duration_seconds):
+def _format_duration(time_seconds):
     """Returns duration as 'H:MM:SS' or 'M:SS'."""
-    total_minutes = int(duration_seconds // 60)
-    seconds = int(duration_seconds % 60)
+    total_minutes = int(time_seconds // 60)
+    seconds = int(time_seconds % 60)
     if total_minutes >= 60:
         hours = total_minutes // 60
         mins = total_minutes % 60
@@ -2331,28 +2348,30 @@ def _format_duration(duration_seconds):
 
 def _format_distance(distance_km, unit='km'):
     """Returns distance string in the logged unit."""
+    if distance_km is None:
+        return f"0.00 {unit}"
     if unit == 'mi':
-        return f"{distance_km / 1.60934:.2f} mi"
-    return f"{distance_km:.2f} km"
+        return f"{float(distance_km) / 1.60934:.2f} mi"
+    return f"{float(distance_km):.2f} km"
 
 
-def _pace_seconds_per_km(duration_seconds, distance_km):
+def _pace_seconds_per_km(time_seconds, distance_km):
     """Returns pace in seconds/km for sorting (lower = faster)."""
     if not distance_km or distance_km <= 0:
         return float('inf')
-    return duration_seconds / distance_km
+    return time_seconds / distance_km
 
 
 def _enrich_run(row):
     """Add computed display fields to a run row dict."""
     r = dict(row)
-    r['pace_display'] = _format_pace(r['duration_seconds'], r['distance_km'], r.get('unit', 'km'))
-    r['duration_display'] = _format_duration(r['duration_seconds'])
+    r['pace_display'] = _format_pace(r['time_seconds'], r['distance_km'], r.get('unit', 'km'))
+    r['duration_display'] = _format_duration(r['time_seconds'])
     r['distance_display'] = _format_distance(r['distance_km'], r.get('unit', 'km'))
     r['distance_input_value'] = round(r['distance_km'] / 1.60934, 2) if r.get('unit', 'km') == 'mi' else round(r['distance_km'], 2)
-    r['duration_minutes_value'] = int(r['duration_seconds'] // 60)
-    r['duration_seconds_value'] = int(r['duration_seconds'] % 60)
-    r['pace_seconds_per_km'] = _pace_seconds_per_km(r['duration_seconds'], r['distance_km'])
+    r['duration_minutes_value'] = int(r['time_seconds'] // 60)
+    r['time_seconds_value'] = int(r['time_seconds'] % 60)
+    r['pace_seconds_per_km'] = _pace_seconds_per_km(r['time_seconds'], r['distance_km'])
     return r
 
 
@@ -2382,12 +2401,12 @@ def log_lifts():
 
             session_cursor = conn.execute(
                 """
-                INSERT INTO exercise_sessions (user_id, exercise_id, notes, date, created_at)
+                INSERT INTO lift_sessions (user_id, exercise_id, notes, date, created_at)
                 VALUES (?, ?, ?, ?, ?)
                 """,
                 (user_id, exercise_id, notes_val, entry_date, created_at)
             )
-            session_id = session_cursor.lastrowid
+            lift_session_id = session_cursor.lastrowid
 
             cleaned_sets = []
             for index, set_entry in enumerate(raw_sets):
@@ -2405,15 +2424,15 @@ def log_lifts():
 
                 conn.execute(
                     """
-                    INSERT INTO set_entries (session_id, weight_kg, reps, order_index, rpe, notes)
+                    INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
                     VALUES (?, ?, ?, ?, ?, ?)
                     """,
-                    (session_id, weight_val, reps_val, index, None, None)
+                    (lift_session_id, weight_val, reps_val, index, None, None)
                 )
                 cleaned_sets.append({'weight_kg': weight_val, 'reps': reps_val, 'order_index': index})
 
             if not cleaned_sets:
-                conn.execute('DELETE FROM exercise_sessions WHERE id = ?', (session_id,))
+                conn.execute('DELETE FROM lift_sessions WHERE id = ?', (lift_session_id,))
                 conn.commit()
                 conn.close()
                 return redirect(url_for('log_lifts'))
@@ -2421,7 +2440,7 @@ def log_lifts():
             conn.commit()
 
             current_session = _enrich_session_record({
-                'id': session_id,
+                'id': lift_session_id,
                 'user_id': user_id,
                 'exercise': exercise,
                 'notes': notes_val,
@@ -2433,7 +2452,7 @@ def log_lifts():
             previous_session = conn.execute(
                 """
                 SELECT id
-                FROM exercise_sessions
+                FROM lift_sessions
                 WHERE user_id = ?
                   AND exercise_id = ?
                   AND date < ?
@@ -2532,8 +2551,8 @@ def log_lifts():
 def get_all_sets_for_exercise(conn, exercise_id, user_id):
     query = """
         SELECT se.weight_kg as weight, se.reps, es.date, 1 as completed
-        FROM set_entries se
-        JOIN exercise_sessions es ON se.session_id = es.id
+        FROM lift_sets se
+        JOIN lift_sessions es ON se.lift_session_id = es.id
         WHERE es.user_id = ? AND es.exercise_id = ?
         
         UNION ALL
@@ -2612,8 +2631,8 @@ def exercise_recent_performance():
         
     query = """
         SELECT se.weight_kg, se.reps, es.date, se.order_index as ord
-        FROM set_entries se
-        JOIN exercise_sessions es ON se.session_id = es.id
+        FROM lift_sets se
+        JOIN lift_sessions es ON se.lift_session_id = es.id
         WHERE es.user_id = ? AND es.exercise_id = ?
           AND (se.reps > 0 OR se.weight_kg > 0)
 
@@ -2779,21 +2798,29 @@ def create_workout_session():
                         if not exercise_id and exercise_name:
                             exercise_id, _ = resolve_exercise(conn, exercise_name)
                             
+                        target_type = comp.get('target_type', 'reps')
                         reps = comp.get('reps')
                         weight_kg = comp.get('weight_kg')
                         rpe = comp.get('rpe')
                         c_notes = comp.get('notes')
-                        dur_sec = comp.get('duration_seconds')
-                        dist_m = comp.get('distance_meters')
-                        load_type = comp.get('load_type')
-                        load_value = comp.get('load_value')
+                        
+                        calories = comp.get('calories')
+                        distance_meters = comp.get('distance_meters')
+                        
+                        time_sec = comp.get('time_seconds')
+                        if target_type == 'time':
+                            mins = int(comp.get('minutes') or 0)
+                            secs = int(comp.get('seconds') or 0)
+                            time_sec = mins * 60 + secs
+                        
+                        height_inch = comp.get('height_inch')
                         
                         if exercise_id is not None:
                             conn.execute(
                                 """INSERT INTO set_components 
-                                   (set_group_id, exercise_id, reps, weight_kg, rpe, notes, duration_seconds, distance_meters, load_type, load_value)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                                (sg_id, exercise_id, reps, weight_kg, rpe, c_notes, dur_sec, dist_m, load_type, load_value)
+                                   (set_group_id, exercise_id, reps, weight_kg, rpe, notes, time_seconds, distance_meters, calories, height_inch, target_type)
+                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                (sg_id, exercise_id, reps, weight_kg, rpe, c_notes, time_sec, distance_meters, calories, height_inch, target_type)
                             )
                     
                     order_index += 1
@@ -2867,7 +2894,8 @@ def workout_history():
         group_list = []
         for g in groups:
             comps = conn.execute("""
-                SELECT sc.id, e.name AS exercise, sc.reps, sc.weight_kg
+                SELECT sc.id, e.name AS exercise, sc.reps, sc.weight_kg, 
+                       sc.target_type, sc.calories, sc.distance_meters, sc.time_seconds
                 FROM set_components sc
                 JOIN exercises e ON sc.exercise_id = e.id
                 WHERE sc.set_group_id = ?
@@ -3120,7 +3148,7 @@ def delete_lift(id):
     user_id = session["user_id"]
 
     cursor = conn.execute(
-        'DELETE FROM exercise_sessions WHERE id = ? AND user_id = ?',
+        'DELETE FROM lift_sessions WHERE id = ? AND user_id = ?',
         (id, user_id)
     )
     conn.commit()
@@ -3168,7 +3196,7 @@ def edit_lift(id):
 
         try:
             existing = conn.execute(
-                'SELECT id FROM exercise_sessions WHERE id = ? AND user_id = ?',
+                'SELECT id FROM lift_sessions WHERE id = ? AND user_id = ?',
                 (id, user_id)
             ).fetchone()
             if not existing:
@@ -3181,12 +3209,12 @@ def edit_lift(id):
                 flash("Please choose an exercise", "error")
                 return redirect(url_for('edit_lift', id=id))
             conn.execute("""
-                UPDATE exercise_sessions
+                UPDATE lift_sessions
                 SET exercise_id = ?, notes = ?, date = ?
                 WHERE id = ? AND user_id = ?
             """, (exercise_id, notes or None, date_str, id, user_id))
 
-            conn.execute('DELETE FROM set_entries WHERE session_id = ?', (id,))
+            conn.execute('DELETE FROM lift_sets WHERE lift_session_id = ?', (id,))
 
             cleaned_sets = []
             for index, set_entry in enumerate(raw_sets):
@@ -3203,7 +3231,7 @@ def edit_lift(id):
                     weight_val = weight_val / 2.20462
 
                 conn.execute("""
-                    INSERT INTO set_entries (session_id, weight_kg, reps, order_index, rpe, notes)
+                    INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
                     VALUES (?, ?, ?, ?, ?, ?)
                 """, (id, weight_val, reps_val, index, None, None))
                 cleaned_sets.append(True)
@@ -3291,7 +3319,7 @@ def lifts_history():
     prs = build_pr_gallery(fetch_user_sessions(conn, user_id, limit=None, order_desc=True))
     exercises = [r['exercise'] for r in conn.execute(
         '''SELECT DISTINCT e.name as exercise
-           FROM exercise_sessions es
+           FROM lift_sessions es
            JOIN exercises e ON es.exercise_id = e.id
            WHERE es.user_id = ? ORDER BY e.name''',
         (user_id,)
@@ -3362,7 +3390,7 @@ def log_run():
             unit = request.form.get('unit', 'km')
             run_type = request.form.get('run_type', 'Run').strip() or 'Run'
             dur_min = int(request.form.get('duration_minutes', 0) or 0)
-            dur_sec = int(request.form.get('duration_seconds', 0) or 0)
+            dur_sec = int(request.form.get('time_seconds', 0) or 0)
             date_str = request.form.get('date', '').strip() or datetime.now().strftime('%Y-%m-%d')
             notes = request.form.get('notes', '').strip() or None
 
@@ -3372,15 +3400,15 @@ def log_run():
                 return redirect(url_for('log_run'))
 
             distance_km = distance_raw / 1.60934 if unit == 'mi' else distance_raw
-            duration_seconds = dur_min * 60 + dur_sec
+            time_seconds = dur_min * 60 + dur_sec
             created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             run_cursor = conn.execute(
                 """
-                INSERT INTO runs (user_id, distance_km, duration_seconds, unit, run_type, date, notes, created_at)
+                INSERT INTO runs (user_id, distance_km, time_seconds, unit, run_type, date, notes, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (user_id, distance_km, duration_seconds, unit, run_type, date_str, notes, created_at)
+                (user_id, distance_km, time_seconds, unit, run_type, date_str, notes, created_at)
             )
             run_id = run_cursor.lastrowid
             conn.commit()
@@ -3389,7 +3417,7 @@ def log_run():
                 'id': run_id,
                 'user_id': user_id,
                 'distance_km': distance_km,
-                'duration_seconds': duration_seconds,
+                'time_seconds': time_seconds,
                 'unit': unit,
                 'run_type': run_type,
                 'date': date_str,
@@ -3423,7 +3451,7 @@ def log_run():
                     emoji = "🔥"
                     # Check all-time PB
                     fastest_ever = conn.execute(
-                        "SELECT MIN(duration_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
+                        "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
                         (user_id, run_id)
                     ).fetchone()[0]
                     if fastest_ever is None or curr_pace < fastest_ever:
@@ -3438,7 +3466,7 @@ def log_run():
                     emoji = "✨"
             else:
                 fastest_ever = conn.execute(
-                    "SELECT MIN(duration_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
+                    "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
                     (user_id, run_id)
                 ).fetchone()[0]
                 if fastest_ever is None or new_run['pace_seconds_per_km'] < fastest_ever:
@@ -3452,7 +3480,7 @@ def log_run():
                         "id": new_run['id'],
                         "distance_display": new_run['distance_display'],
                         "duration_display": new_run['duration_display'],
-                        "duration_seconds": new_run['duration_seconds'],
+                        "time_seconds": new_run['time_seconds'],
                         "pace_display": new_run['pace_display'],
                         "run_type": new_run.get('run_type', 'Run'),
                         "date": new_run['date'],
@@ -3485,7 +3513,7 @@ def log_run():
     all_enriched = [_enrich_run(dict(r)) for r in all_rows]
 
     fastest_runs = sorted(all_enriched, key=lambda x: x['pace_seconds_per_km'])[:3]
-    longest_runs = sorted(all_enriched, key=lambda x: (-x['distance_km'], x['duration_seconds']))[:3]
+    longest_runs = sorted(all_enriched, key=lambda x: (-x['distance_km'], x['time_seconds']))[:3]
 
     best_pace = fastest_runs[0]['pace_display'] if fastest_runs else '-'
 
@@ -3555,7 +3583,7 @@ def edit_run(run_id):
         unit = request.form.get('unit', 'km')
         run_type = request.form.get('run_type', 'Run').strip() or 'Run'
         dur_min = int(request.form.get('duration_minutes', 0) or 0)
-        dur_sec = int(request.form.get('duration_seconds', 0) or 0)
+        dur_sec = int(request.form.get('time_seconds', 0) or 0)
         date_str = request.form.get('date', '').strip() or existing['date']
         notes = request.form.get('notes', '').strip() or None
 
@@ -3563,15 +3591,15 @@ def edit_run(run_id):
             raise ValueError("Invalid run data")
 
         distance_km = distance_raw / 1.60934 if unit == 'mi' else distance_raw
-        duration_seconds = dur_min * 60 + dur_sec
+        time_seconds = dur_min * 60 + dur_sec
 
         conn.execute(
             """
             UPDATE runs
-            SET distance_km = ?, duration_seconds = ?, unit = ?, run_type = ?, date = ?, notes = ?
+            SET distance_km = ?, time_seconds = ?, unit = ?, run_type = ?, date = ?, notes = ?
             WHERE id = ? AND user_id = ?
             """,
-            (distance_km, duration_seconds, unit, run_type, date_str, notes, run_id, user_id)
+            (distance_km, time_seconds, unit, run_type, date_str, notes, run_id, user_id)
         )
         conn.commit()
 
@@ -3579,7 +3607,7 @@ def edit_run(run_id):
             'id': run_id,
             'user_id': user_id,
             'distance_km': distance_km,
-            'duration_seconds': duration_seconds,
+            'time_seconds': time_seconds,
             'unit': unit,
             'run_type': run_type,
             'date': date_str,
@@ -3596,9 +3624,9 @@ def edit_run(run_id):
                     "distance_display": updated['distance_display'],
                     "distance_input_value": updated['distance_input_value'],
                     "duration_display": updated['duration_display'],
-                    "duration_seconds": updated['duration_seconds'],
+                    "time_seconds": updated['time_seconds'],
                     "duration_minutes_value": updated['duration_minutes_value'],
-                    "duration_seconds_value": updated['duration_seconds_value'],
+                    "time_seconds_value": updated['time_seconds_value'],
                     "pace_display": updated['pace_display'],
                     "pace_seconds_per_km": updated['pace_seconds_per_km'],
                     "run_type": updated.get('run_type', 'Run'),

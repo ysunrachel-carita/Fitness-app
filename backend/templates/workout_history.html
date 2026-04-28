@@ -77,7 +77,26 @@
                                 <div style="margin-bottom: 4px;">
                                     <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-primary);">Group {{ loop.index }}</span>
                                     &mdash;
-                                    {% for comp in group.components %}{{ comp.exercise.title() }}{% if comp.weight_kg %} @ {{ comp.weight_kg }}kg{% endif %}{% if comp.reps %} {{ comp.reps }} reps{% endif %}{% if not loop.last %} / {% endif %}{% endfor %}
+                                    {% for comp in group.components %}
+                                        {{ comp.exercise.title() }}
+                                        {% if comp.target_type == 'reps' %}
+                                            {% if comp.weight_kg %} @ {{ comp.weight_kg }}kg{% endif %}
+                                            {% if comp.reps %} {{ comp.reps }} reps{% endif %}
+                                        {% elif comp.target_type == 'calories' %}
+                                            {{ comp.calories }} cal
+                                        {% elif comp.target_type == 'distance' %}
+                                            {{ comp.distance_meters }}m
+                                        {% elif comp.target_type == 'time' %}
+                                            {% set tm = comp.time_seconds // 60 %}{% set ts = comp.time_seconds % 60 %}
+                                            {{ tm }}:{{ "%02d"|format(ts) }}
+                                        {% elif comp.target_type == 'shuttle' %}
+                                            {{ comp.reps }} × {{ comp.distance_meters }}m
+                                        {% else %}
+                                            {% if comp.weight_kg %} @ {{ comp.weight_kg }}kg{% endif %}
+                                            {% if comp.reps %} {{ comp.reps }} reps{% endif %}
+                                        {% endif %}
+                                        {% if not loop.last %} / {% endif %}
+                                    {% endfor %}
                         {% if group.rest_seconds %}
                                     {% set rm = group.rest_seconds // 60 %}{% set rs = group.rest_seconds % 60 %}
                                     <span style="font-size: 11px; color: var(--text-muted);"> &bull; {% if rm %}{{ rm }}m {% endif %}{% if rs %}{{ rs }}s {% endif %}rest</span>
@@ -335,8 +354,25 @@ document.addEventListener('DOMContentLoaded', function () {
             html += '<span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-primary);">Group ' + (gi + 1) + '</span> &mdash; ';
             html += g.components.map(function (c) {
                 var s = escapeHtml(c.exercise ? c.exercise.charAt(0).toUpperCase() + c.exercise.slice(1) : '');
-                if (c.weight_kg) s += ' @ ' + c.weight_kg + 'kg';
-                if (c.reps)      s += ' ' + c.reps + ' reps';
+                
+                if (c.target_type === 'reps') {
+                    if (c.weight_kg) s += ' @ ' + c.weight_kg + 'kg';
+                    if (c.reps)      s += ' ' + c.reps + ' reps';
+                } else if (c.target_type === 'calories') {
+                    s += ' ' + (c.calories || 0) + ' cal';
+                } else if (c.target_type === 'distance') {
+                    s += ' ' + (c.distance_meters || 0) + 'm';
+                } else if (c.target_type === 'time') {
+                    var sec = c.time_seconds || 0;
+                    var m = Math.floor(sec / 60);
+                    var s2 = sec % 60;
+                    s += ' ' + m + ':' + s2.toString().padStart(2, '0');
+                } else if (c.target_type === 'shuttle') {
+                    s += ' ' + (c.reps || 0) + ' × ' + (c.distance_meters || 0) + 'm';
+                } else {
+                    if (c.weight_kg) s += ' @ ' + c.weight_kg + 'kg';
+                    if (c.reps)      s += ' ' + c.reps + ' reps';
+                }
                 return s;
             }).join(' / ');
             if (g.rest_seconds) {

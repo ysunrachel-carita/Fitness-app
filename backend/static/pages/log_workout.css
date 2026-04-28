@@ -633,3 +633,85 @@
     }
     .ex-cell-name { font-size: 13px; }
 }
+
+/* ========================
+   UNIT SELECTOR & MULTI-UNIT INPUTS
+   ======================== */
+
+.unit-selector {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    background: var(--bg-secondary);
+    padding: 4px;
+    border-radius: 8px;
+    width: fit-content;
+}
+
+.unit-pill {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-muted);
+    transition: all 0.2s;
+}
+
+.unit-pill:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.unit-pill.active {
+    background: var(--accent-primary);
+    color: white;
+}
+
+.comp-inputs-container {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex: 1.5;
+}
+
+.unit-input-group {
+    display: none;
+    align-items: center;
+    gap: 4px;
+    width: 100%;
+}
+
+.unit-input-group.active {
+    display: flex;
+}
+
+.unit-label-inline {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-left: 2px;
+}
+
+.time-separator,
+.shuttle-separator {
+    font-weight: bold;
+    color: var(--text-muted);
+}
+
+.phase-2-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.phase-2-time-inputs {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+}
+
+.phase-2-time-inputs input {
+    width: 45px !important;
+    padding: 4px 6px !important;
+    text-align: center;
+}

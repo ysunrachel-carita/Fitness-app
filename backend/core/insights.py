@@ -4,7 +4,9 @@ from datetime import datetime, timedelta
 def _get_conn(conn):
     if conn:
         return conn
-    c = sqlite3.connect('fitness.db')
+    import os
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'data', 'fitness.db')
+    c = sqlite3.connect(db_path)
     c.row_factory = sqlite3.Row
     return c
 
