@@ -827,25 +827,28 @@ def inject_profile_photo():
     photo_path = None
     display_name = None
     if session.get('user_id'):
-        conn = get_db()
-        profile = conn.execute(
-            'SELECT photo_path FROM user_profiles WHERE user_id = ?',
-            (session['user_id'],)
-        ).fetchone()
-        if profile and profile['photo_path']:
-            photo_path = profile['photo_path']
-        
-        user = conn.execute(
-            'SELECT display_name FROM users WHERE id = ?',
-            (session['user_id'],)
-        ).fetchone()
-        if user and user['display_name']:
-            display_name = user['display_name']
-        else:
-            display_name = session.get('username', '')
-        
-        conn.close()
-    return {'profile_photo': photo_path, 'display_name': display_name}
+        try:
+            conn = get_db()
+            profile = conn.execute(
+                'SELECT photo_path FROM user_profiles WHERE user_id = ?',
+                (session['user_id'],)
+            ).fetchone()
+            if profile and profile['photo_path']:
+                photo_path = profile['photo_path']
+            
+            user = conn.execute(
+                'SELECT display_name FROM users WHERE id = ?',
+                (session['user_id'],)
+            ).fetchone()
+            if user and user['display_name']:
+                display_name = user['display_name']
+            else:
+                display_name = session.get('username', '')
+            
+            conn.close()
+        except Exception as e:
+            print(f"⚠️ Error in context processor: {e}")
+            display_name = session.get('username', 'User')
 
 # --- EXERCISE LISTS BY MUSCLE GROUP ---
 # These are now loaded from the database
@@ -1336,6 +1339,7 @@ def init_db():
             id {id_type},
             username TEXT UNIQUE NOT NULL,
             password_hash TEXT NOT NULL,
+            display_name TEXT,
             created_at TEXT NOT NULL
         )
     """)
@@ -1430,11 +1434,6 @@ def init_db():
 
     _safe_alter("ALTER TABLE runs ADD COLUMN IF NOT EXISTS run_type TEXT NOT NULL DEFAULT 'Run'")
     _safe_alter("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS photo_path TEXT")
-    _safe_alter("ALTER TABLE users ADD COLUMN IF NOT EXISTS display_name TEXT")
-    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS wod_type TEXT")
-    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS time_cap_minutes INTEGER")
-    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_interval INTEGER")
-    _safe_alter("ALTER TABLE wods ADD COLUMN IF NOT EXISTS emom_duration INTEGER")
     _safe_alter("ALTER TABLE lift_sessions ADD COLUMN IF NOT EXISTS workout_session_id INTEGER")
         
     conn.execute(f"""
