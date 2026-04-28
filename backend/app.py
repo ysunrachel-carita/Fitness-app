@@ -849,6 +849,7 @@ def inject_profile_photo():
         except Exception as e:
             print(f"⚠️ Error in context processor: {e}")
             display_name = session.get('username', 'User')
+    return {'profile_photo': photo_path, 'display_name': display_name}
 
 # --- EXERCISE LISTS BY MUSCLE GROUP ---
 # These are now loaded from the database
