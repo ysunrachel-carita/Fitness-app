@@ -548,6 +548,23 @@
     margin-top: 2px;
 }
 
+.ex-cell-last-session {
+    font-size: 11px;
+    color: var(--accent-primary);
+    font-weight: 500;
+    margin-top: 4px;
+    opacity: 0;
+    height: 0;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.ex-cell-last-session.visible {
+    opacity: 1;
+    height: auto;
+    margin-top: 4px;
+}
+
 .round-col {
     width: 100px;
     min-width: 80px;
@@ -641,7 +658,6 @@
 .unit-selector {
     display: flex;
     gap: 4px;
-    margin-bottom: 8px;
     background: var(--bg-secondary);
     padding: 4px;
     border-radius: 8px;
@@ -672,7 +688,6 @@
     display: flex;
     gap: 8px;
     align-items: center;
-    flex: 1.5;
 }
 
 .unit-input-group {
@@ -714,4 +729,169 @@
     width: 45px !important;
     padding: 4px 6px !important;
     text-align: center;
+}
+
+/* ========================
+   EXERCISE COMPONENT CARD
+   ======================== */
+
+/* Each exercise is its own card */
+.component-wrapper {
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, rgba(30,41,59,0.5), rgba(17,24,39,0.5));
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    animation: slideDown 0.15s ease-out;
+}
+
+/* Row 1: exercise input + pills + delete button */
+.comp-row-1 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.comp-row-1 .exercise-autocomplete-wrapper {
+    flex: 1;
+    min-width: 0;
+}
+
+.comp-row-1 .unit-selector {
+    flex-shrink: 0;
+}
+
+/* Exercise name: styled like a bold heading input */
+.comp-exercise-input {
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border-color);
+    border-radius: 0;
+    padding: 4px 2px;
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 700;
+    color: var(--text-primary);
+    width: 100%;
+    outline: none;
+    transition: border-color 0.15s ease;
+    margin-bottom: 0;
+}
+
+.comp-exercise-input::placeholder {
+    font-weight: 400;
+    color: var(--text-muted);
+    font-size: 15px;
+}
+
+.comp-exercise-input:focus {
+    border-bottom-color: var(--accent-primary);
+}
+
+/* ---- Inline Style Replacements ---- */
+
+.tips-summary {
+    cursor: pointer;
+    font-weight: 600;
+    padding: 8px 0;
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.tips-body {
+    margin-top: 12px;
+}
+
+.form-label-optional {
+    font-weight: 400;
+    opacity: 0.5;
+}
+
+.form-group-section-top {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border-color);
+}
+
+.input-narrow {
+    max-width: 100px;
+}
+
+.form-actions-top {
+    margin-top: 32px;
+}
+
+.phase2-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 20px;
+}
+
+.table-header-row-p2 {
+    margin-top: 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.form-actions-stacked {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 32px;
+}
+
+.group-footer {
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.group-rest-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.group-rest-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.comp-rest-input {
+    width: 65px;
+    font-size: 14px;
+    padding: 6px 10px;
+    height: 38px;
+}
+
+.comp-unit-input {
+    margin-bottom: 0;
+    width: 110px;
+}
+
+.comp-time-input {
+    margin-bottom: 0;
+    width: 72px;
+}
+
+.comp-shuttle-reps-input {
+    margin-bottom: 0;
+    width: 68px;
+}
+
+.comp-shuttle-dist-input {
+    margin-bottom: 0;
+    width: 80px;
+}
+
+#exercise-data, #phase-2 {
+    display: none;
 }

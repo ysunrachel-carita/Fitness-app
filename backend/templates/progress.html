@@ -242,6 +242,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const svg = chartEl?.querySelector('svg');
         const renderedHeight = chartEl?.getBoundingClientRect().height || chartEl?.clientHeight || 220;
         const viewBoxHeight = svg?.viewBox?.baseVal?.height || 120;
+        const viewBoxWidth = svg?.viewBox?.baseVal?.width || 300;
         const scale = viewBoxHeight ? renderedHeight / viewBoxHeight : 1;
         const topPad = chartInsets.top;
         const bottomPad = chartInsets.bottom;
@@ -358,6 +359,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function drawChart(values, lineEl, dotsEl) {
+        if (!values || !lineEl) return;
         if (!lineEl || !dotsEl) return;
 
         const samples = Array.isArray(values) ? values.filter(function(value) {
@@ -443,14 +445,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         const [primary, ...secondary] = rmProfile;
+        if (!primary) {
+            renderRmProfile([]);
+            return;
+        }
 
-        rmPrimaryKind.textContent = primary.kind.charAt(0).toUpperCase() + primary.kind.slice(1);
-        rmPrimaryValue.textContent = primary.display;
-        rmPrimaryDate.textContent = primary.date_label;
+        rmPrimaryKind.textContent = (primary.kind || 'estimated').charAt(0).toUpperCase() + (primary.kind || 'estimated').slice(1);
+        rmPrimaryValue.textContent = primary.display || '-';
+        rmPrimaryDate.textContent = primary.date_label || '-';
         rmPrimary.classList.toggle('progress-rm-entry--actual', primary.kind === 'actual');
-        rmPrimary.classList.toggle('progress-rm-entry--estimated', primary.kind === 'estimated');
+        rmPrimary.classList.toggle('progress-rm-entry--estimated', primary.kind !== 'actual');
 
-        if (secondary.length) {
+        if (secondary && secondary.length) {
             rmGrid.hidden = false;
             rmEmpty.hidden = true;
         } else {
@@ -458,14 +464,17 @@ document.addEventListener('DOMContentLoaded', function() {
             rmEmpty.hidden = false;
         }
 
-        rmGrid.innerHTML = secondary.map(function(item) {
+        rmGrid.innerHTML = (secondary || []).map(function(item) {
+            if (!item) return '';
+            const kind = item.kind || 'estimated';
+            const displayKind = kind.charAt(0).toUpperCase() + kind.slice(1);
             return `
-                <div class="progress-rm-entry progress-rm-entry--${item.kind}">
+                <div class="progress-rm-entry progress-rm-entry--${kind}">
                     <div class="progress-rm-entry-top">
-                        <div class="progress-rm-entry-label">${item.rm}RM</div>
-                        <div class="progress-rm-entry-kind">${item.kind.charAt(0).toUpperCase() + item.kind.slice(1)}</div>
+                        <div class="progress-rm-entry-label">${item.rm || '?'}RM</div>
+                        <div class="progress-rm-entry-kind">${displayKind}</div>
                     </div>
-                    <div class="progress-rm-entry-value">${item.display}</div>
+                    <div class="progress-rm-entry-value">${item.display || '-'}</div>
                 </div>
             `;
         }).join('');
@@ -506,8 +515,13 @@ document.addEventListener('DOMContentLoaded', function() {
             exercisePrompt.hidden = true;
         }
 
-        dropdownBtn.textContent = `${exercise.exercise_label} ▾`;
-        sessionsValue.textContent = exercise.sessions_count;
+        if (dropdownBtn) {
+            dropdownBtn.textContent = `${exercise.exercise_label} ▾`;
+        }
+        
+        if (sessionsValue) {
+            sessionsValue.textContent = exercise.sessions_count;
+        }
         
         const historyBaseUrl = "{{ url_for('lifts_history') }}";
         if (sessionsCard) {
@@ -516,19 +530,31 @@ document.addEventListener('DOMContentLoaded', function() {
                 : historyBaseUrl;
         }
 
-        lastWorkoutValue.textContent = exercise.current_lift.weight_display;
-        lastWorkoutMeta.textContent = exercise.current_lift.date_label;
-        trendMessage.textContent = exercise.trend.message;
+        if (lastWorkoutValue) {
+            lastWorkoutValue.textContent = exercise.current_lift.weight_display;
+        }
+        if (lastWorkoutMeta) {
+            lastWorkoutMeta.textContent = exercise.current_lift.date_label;
+        }
+        if (trendMessage) {
+            trendMessage.textContent = exercise.trend.message;
+        }
         if (overlayTitle) {
             overlayTitle.textContent = `Log ${exercise.sessions_needed} more session${exercise.sessions_needed === 1 ? '' : 's'} to unlock performance insights`;
         }
-        overlayMessage.hidden = exercise.locked;
-        overlayMessage.textContent = exercise.trend.message;
-        overlay.hidden = !exercise.locked;
-        chart.classList.toggle('progress-hero-chart--locked', exercise.locked);
-        chart.dataset.exercise = exercise.exercise;
-        chart.dataset.chartValues = JSON.stringify(exercise.chart_values);
-        chart.dataset.chartDates = JSON.stringify(exercise.chart_dates);
+        if (overlayMessage) {
+            overlayMessage.hidden = exercise.locked;
+            overlayMessage.textContent = exercise.trend.message;
+        }
+        if (overlay) {
+            overlay.hidden = !exercise.locked;
+        }
+        if (chart) {
+            chart.classList.toggle('progress-hero-chart--locked', exercise.locked);
+            chart.dataset.exercise = exercise.exercise;
+            chart.dataset.chartValues = JSON.stringify(exercise.chart_values);
+            chart.dataset.chartDates = JSON.stringify(exercise.chart_dates);
+        }
 
         drawChart(exercise.chart_values, line, dots);
         if (line) {
@@ -550,24 +576,27 @@ document.addEventListener('DOMContentLoaded', function() {
     renderExercise(progressData.selectedExercise);
 
     // Dropdown toggle
-    dropdownBtn.addEventListener('click', function(e) {
-        e.stopPropagation();
-        dropdownMenu.classList.toggle('show');
-    });
+    if (dropdownBtn && dropdownMenu) {
+        dropdownBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            dropdownMenu.classList.toggle('show');
+        });
 
-    document.addEventListener('click', function() {
-        dropdownMenu.classList.remove('show');
-    });
-
-    // Dropdown selection
-    document.querySelectorAll('#progress-dropdown-menu a').forEach(function(link) {
-        link.addEventListener('click', function(e) {
-            e.preventDefault();
-            history.pushState({}, '', link.href);
-            renderExercise(link.dataset.exercise);
+        document.addEventListener('click', function() {
             dropdownMenu.classList.remove('show');
         });
-    });
+
+        // Dropdown selection
+        dropdownMenu.querySelectorAll('a').forEach(function(link) {
+            link.addEventListener('click', function(e) {
+                e.preventDefault();
+                const ex = link.dataset.exercise;
+                history.pushState({}, '', link.href);
+                renderExercise(ex);
+                dropdownMenu.classList.remove('show');
+            });
+        });
+    }
 
     window.addEventListener('popstate', function() {
         const params = new URLSearchParams(window.location.search);

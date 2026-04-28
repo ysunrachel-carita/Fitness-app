@@ -117,6 +117,14 @@
     text-transform: none;
 }
 
+.helper-text--last-session {
+    font-size: 11px;
+    color: var(--accent-primary);
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
 .log-lifts-panel .form-input,
 .log-lifts-panel .form-select,
 .log-lifts-panel .form-textarea {

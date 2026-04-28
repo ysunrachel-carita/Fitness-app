@@ -49,7 +49,10 @@
                         </div>
 
                         <div class="form-group">
-                            <label class="form-label">Sets</label>
+                            <div style="display: flex; justify-content: space-between; align-items: baseline;">
+                                <label class="form-label">Sets</label>
+                                <span id="last-session-info" class="helper-text helper-text--last-session"></span>
+                            </div>
 
                             <div id="lift-set-rows">
                                 <div class="form-group" data-set-row>
@@ -235,8 +238,10 @@
 
         suggestionsDiv.addEventListener('click', function (e) {
             if (e.target.classList.contains('suggestion-item')) {
-                exerciseInput.value = e.target.dataset.exercise;
+                const val = e.target.dataset.exercise;
+                exerciseInput.value = val;
                 suggestionsDiv.style.display = 'none';
+                updateLastSessionInfo(val);
             }
         });
 
@@ -250,6 +255,38 @@
             if (e.key === 'Escape') {
                 suggestionsDiv.style.display = 'none';
             }
+        });
+
+        async function updateLastSessionInfo(exerciseName) {
+            const lastSessionEl = document.getElementById('last-session-info');
+            if (!lastSessionEl) return;
+            
+            lastSessionEl.textContent = '';
+            lastSessionEl.style.opacity = '0';
+
+            if (!exerciseName || exerciseName.length < 2) {
+                return;
+            }
+
+            try {
+                const res = await fetch(`/exercise_recent_performance?name=${encodeURIComponent(exerciseName)}`);
+                const data = await res.json();
+                
+                if (data && data.entries && data.entries.length > 0) {
+                    const displays = data.entries.map(e => e.display).join(', ');
+                    lastSessionEl.textContent = `last session: ${displays}`;
+                    lastSessionEl.style.opacity = '1';
+                } else {
+                    lastSessionEl.textContent = '';
+                }
+            } catch (e) {
+                console.error("Error fetching recent performance:", e);
+                lastSessionEl.textContent = '';
+            }
+        }
+
+        exerciseInput.addEventListener('blur', function() {
+            updateLastSessionInfo(this.value.trim());
         });
 
         function renumberSetRows() {

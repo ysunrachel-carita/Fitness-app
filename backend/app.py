@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
-load_dotenv()
+load_dotenv(override=True)
 
 
 app = Flask(__name__)
@@ -120,20 +120,18 @@ def _build_best_set(sets):
             continue
 
         rm_value = estimate_one_rep_max(weight_value, reps_value)
-        if rm_value is None:
-            continue
+        # If we can't estimate (e.g. too many reps), use the weight itself as a floor
+        val_for_comparison = float(rm_value) if rm_value is not None else weight_value
 
         candidate = dict(set_entry)
         candidate['weight_kg'] = weight_value
         candidate['reps'] = reps_value
         candidate['order_index'] = order_index
-        candidate['value'] = float(rm_value)
+        candidate['value'] = val_for_comparison
 
-        if best_value is None or candidate['value'] > best_value or (
-            candidate['value'] == best_value and candidate['order_index'] > best_set['order_index']
-        ):
-            best_set = candidate
+        if best_value is None or candidate['value'] > best_value:
             best_value = candidate['value']
+            best_set = candidate
 
     return best_set
 
@@ -326,18 +324,43 @@ def estimate_one_rep_max(weight_kg, reps):
     if weight_kg is None or reps is None:
         return None
     
-    reps = float(reps)
-    if reps > 10:
+    try:
+        w = float(weight_kg)
+        r = float(reps)
+    except (TypeError, ValueError):
         return None
 
-    return float(weight_kg) * (1 + reps / 30.0)
-
-
-def estimate_rep_max_from_one_rm(one_rm, reps):
-    if one_rm is None:
+    if w <= 0 or r < 1:
         return None
 
-    return float(one_rm) / (1 + float(reps) / 30.0)
+    # We limit estimation to 20 reps for better accuracy
+    # For sets > 20 reps, we just return the weight as a conservative baseline
+    if r > 20:
+        return w
+    
+    if r == 1:
+        return w
+
+    # Epley formula: 1RM = W * (1 + r/30)
+    # Using r-1 to ensure 1RM of 1 rep is just the weight itself
+    return w * (1 + (r - 1) / 30.0)
+
+
+def estimate_rep_max_from_one_rm(one_rm, target_reps):
+    if one_rm is None or target_reps is None:
+        return None
+
+    try:
+        orm = float(one_rm)
+        r = float(target_reps)
+    except (TypeError, ValueError):
+        return None
+
+    if orm <= 0 or r < 1:
+        return None
+
+    # Inverse Epley: W = 1RM / (1 + (r-1)/30)
+    return orm / (1 + (r - 1) / 30.0)
 
 
 def _progress_date_sort_key(value):
@@ -373,19 +396,18 @@ def _build_rm_point(session):
     except (TypeError, ValueError):
         return None
 
-    if weight_value <= 0 or reps_value < 1 or reps_value > 12:
+    if weight_value <= 0 or reps_value < 1:
         return None
 
     date_value = str(session['date']).split(' ')[0]
-    point_kind = 'actual' if reps_value == 1 else 'estimated'
-    rm_value = weight_value if reps_value == 1 else estimate_one_rep_max(weight_value, reps_value)
+    rm_value = estimate_one_rep_max(weight_value, reps_value)
 
     if rm_value is None:
         return None
 
     return {
         'session': session,
-        'kind': point_kind,
+        'kind': 'actual' if reps_value == 1 else 'estimated',
         'weight_kg': weight_value,
         'reps': reps_value,
         'value': float(rm_value),
@@ -461,51 +483,59 @@ def build_estimated_rm_profile(sessions):
     best_source = max(recent_points, key=lambda point: (point['value'], point['sort_key']))
     best_one_rm_value = float(best_source['value'])
 
+    # Find the best actual lift for each RM target (1-5) if they exist
+    best_actuals = {}
+    for point in recent_points:
+        r = point['reps']
+        if 1 <= r <= 20:
+            if r not in best_actuals or point['weight_kg'] > best_actuals[r]['weight_kg']:
+                best_actuals[r] = point
+
     rm_profile = []
 
     for target_rm in range(1, 6):
-        if target_rm == 1:
-            actual_candidates = [point for point in recent_points if point['reps'] == 1]
-
-            if actual_candidates:
-                best_actual = max(actual_candidates, key=lambda point: (point['weight_kg'], point['sort_key']))
-                rm_profile.append({
-                    'rm': target_rm,
-                    'value': float(best_actual['weight_kg']),
-                    'display': f"{format_weight(best_actual['weight_kg'])}kg",
-                    'kind': 'actual',
-                    'date': best_actual['date'],
-                    'date_label': best_actual['date_label'],
-                    'meta': _format_rm_point_meta(best_actual, target_rm=target_rm, kind='actual'),
-                })
-                continue
-
+        # Prefer actual best for this target if it's better than (or equal to) the estimate from our 1RM
+        # or if the estimate is just too far off.
+        actual = best_actuals.get(target_rm)
+        estimated_val = estimate_rep_max_from_one_rm(best_one_rm_value, target_rm)
+        
+        # Decide whether to use actual or estimated
+        use_actual = False
+        if actual:
+            if estimated_val is None or actual['weight_kg'] >= (estimated_val * 0.9):
+                use_actual = True
+        
+        if use_actual and actual:
             rm_profile.append({
                 'rm': target_rm,
-                'value': best_one_rm_value,
-                'display': f"{format_weight(best_one_rm_value)}kg",
+                'value': float(actual['weight_kg']),
+                'display': f"{format_weight(actual['weight_kg'])}kg",
+                'kind': 'actual',
+                'date': actual['date'],
+                'date_label': actual['date_label'],
+                'meta': _format_rm_point_meta(actual, target_rm=target_rm, kind='actual'),
+            })
+        elif estimated_val is not None:
+            rm_profile.append({
+                'rm': target_rm,
+                'value': float(estimated_val),
+                'display': f"{format_weight(estimated_val)}kg",
                 'kind': 'estimated',
                 'date': best_source['date'],
                 'date_label': best_source['date_label'],
                 'meta': _format_rm_point_meta(best_source, target_rm=target_rm, kind='estimated'),
             })
-            continue
-
-        rm_value = estimate_rep_max_from_one_rm(best_one_rm_value, target_rm)
-
-        if rm_value is None:
-            continue
-
-        rm_profile.append({
-            'rm': target_rm,
-            'value': float(rm_value),
-            'display': f"{format_weight(rm_value)}kg",
-            'kind': 'estimated',
-            'date': best_source['date'],
-            'date_label': best_source['date_label'],
-            'meta': _format_rm_point_meta(best_source, target_rm=target_rm, kind='estimated'),
-        })
-        continue
+        else:
+            # Fallback if somehow both are None
+            rm_profile.append({
+                'rm': target_rm,
+                'value': 0,
+                'display': '-',
+                'kind': 'estimated',
+                'date': '-',
+                'date_label': '-',
+                'meta': '-',
+            })
 
     return rm_profile
 
@@ -1122,9 +1152,16 @@ def get_db():
                 parts = database_url.split("@")
                 masked_url = parts[0].split(":")[0] + ":****@" + parts[1]
             
-            print(f"📡 Connecting to database (attempt {attempt + 1})...")
+            # Extract host for logging
+            host = "unknown"
+            if "@" in database_url:
+                host = database_url.split("@")[1].split(":")[0].split("/")[0]
+            elif "localhost" in database_url or "127.0.0.1" in database_url:
+                host = "localhost"
+
+            print(f"📡 Connecting to database on {host} (attempt {attempt + 1})...")
             conn = psycopg2.connect(database_url.strip())
-            print("✅ Database connected successfully.")
+            print(f"✅ Database connected successfully to {host}.")
             return PgWrapper(conn)
         except Exception as e:
             if attempt < max_retries - 1:
@@ -3844,11 +3881,36 @@ def progress():
     # Sort by session count (most sessions first)
     exercise_insights.sort(key=lambda x: x['sessions_count'], reverse=True)
 
-    selected_exercise = progress_exercises.get(selected_exercise_name) if selected_exercise_name else None
+    # Robust exercise selection
+    if not selected_exercise_name and exercise_insights:
+        selected_exercise_name = exercise_insights[0]['exercise']
 
-    most_trained = exercise_insights[0]
-    heaviest_lift = max(sessions, key=lambda x: (x.get('session_value') or 0, _progress_session_sort_key(x)))
-    latest_lift = sessions[-1]
+    selected_exercise = None
+    if selected_exercise_name:
+        # Try exact match first
+        selected_exercise = progress_exercises.get(selected_exercise_name)
+        
+        # If not found, try case-insensitive match
+        if not selected_exercise:
+            search_name = selected_exercise_name.lower().strip()
+            for name, data in progress_exercises.items():
+                if name.lower().strip() == search_name:
+                    selected_exercise = data
+                    selected_exercise_name = name # Use the actual name from our dict
+                    break
+
+    # Better highlights for the overview
+    most_trained = exercise_insights[0] if exercise_insights else None
+    
+    # Heaviest lift: Absolute max weight lifted for 1+ reps
+    heaviest_lift = None
+    if sessions:
+        valid_lifts = [s for s in sessions if s.get('weight_kg')]
+        if valid_lifts:
+            heaviest_lift = max(valid_lifts, key=lambda x: (x['weight_kg'], _progress_session_sort_key(x)))
+    
+    # Latest lift: Most recent session
+    latest_lift = sessions[-1] if sessions else None
 
     progress_overview = {
         'performance_highlights': [
@@ -3868,29 +3930,34 @@ def progress():
                 'detail': 'Movements tracked'
             },
             {
-                'label': 'Volume',
+                'label': 'Total Volume',
                 'value': f"{format_weight(total_volume)}kg",
-                'detail': 'kg moved'
+                'detail': 'Total kg moved'
             },
         ],
-        'training_summaries': [
-            {
-                'label': 'Most trained',
-                'value': most_trained['exercise'].title(),
-                'detail': f"{most_trained['sessions_count']} logged sessions"
-            },
-            {
-                'label': 'Heaviest lift',
-                'value': f"{format_weight(heaviest_lift.get('weight_kg'))}kg",
-                'detail': f"{heaviest_lift['exercise'].title()} • {format_progress_date(heaviest_lift['date'])}"
-            },
-            {
-                'label': 'Latest workout',
-                'value': latest_lift['exercise'].title(),
-                'detail': f"{format_progress_date(latest_lift['date'])} • {format_weight(latest_lift.get('weight_kg'))}kg"
-            },
-        ]
+        'training_summaries': []
     }
+
+    if most_trained:
+        progress_overview['training_summaries'].append({
+            'label': 'Most trained',
+            'value': most_trained['exercise'].title(),
+            'detail': f"{most_trained['sessions_count']} logged sessions"
+        })
+    
+    if heaviest_lift:
+        progress_overview['training_summaries'].append({
+            'label': 'Heaviest lift',
+            'value': f"{format_weight(heaviest_lift['weight_kg'])}kg",
+            'detail': f"{heaviest_lift['exercise'].title()} • {format_progress_date(heaviest_lift['date'])}"
+        })
+
+    if latest_lift:
+        progress_overview['training_summaries'].append({
+            'label': 'Latest workout',
+            'value': latest_lift['exercise'].title(),
+            'detail': f"{format_progress_date(latest_lift['date'])} • {format_weight(latest_lift.get('weight_kg'))}kg"
+        })
 
     pr_gallery = build_pr_gallery(sessions)
 
