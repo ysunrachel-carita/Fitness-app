@@ -6,7 +6,6 @@ import time
 from uuid import uuid4
 from flask import jsonify
 from flask import Flask, render_template, request, session, redirect, url_for, flash
-import sqlite3
 import psycopg2
 from psycopg2.extras import DictCursor
 import re
@@ -29,20 +28,6 @@ def ping():
 @app.route('/api/exercises')
 def api_exercises():
     return {"ok": True}
-
-@app.route('/api/insights/<int:user_id>')
-def api_insights(user_id):
-    from core.insights import weekly_volume_spike, recovery_flags, pr_staleness
-    conn = get_db()
-    try:
-        results = {
-            "volume_spike": weekly_volume_spike(user_id, conn),
-            "recovery": recovery_flags(user_id, conn),
-            "pr_staleness": pr_staleness(user_id, conn)
-        }
-    finally:
-        conn.close()
-    return jsonify(results)
 
 app.secret_key = "replace_this_with_a_random_secret"
 
@@ -612,18 +597,7 @@ def build_pr_gallery(sessions):
     }
 
 
-def _table_exists(conn, table_name):
-    return conn.execute(
-        "SELECT 1 FROM sqlite_master WHERE type='table' AND name = ?",
-        (table_name,)
-    ).fetchone() is not None
-
-
-def _column_exists(conn, table_name, column_name):
-    return any(
-        row[1] == column_name
-        for row in conn.execute(f"PRAGMA table_info({table_name})").fetchall()
-    )
+# --- DATABASE HELPERS ---
 
 
 def migrate_legacy_lifts_to_sessions(conn):
@@ -1298,285 +1272,8 @@ def resolve_exercise(conn, user_input):
     EXERCISES.setdefault('Other', []).append(display_name)
     return cursor.lastrowid, display_name
 
-
-def _migrate_lift_sessions_to_fk():
-    """One-time: replace exercise TEXT column with exercise_id FK on lift_sessions."""
-    conn = get_db()
-    cols = [row[1] for row in conn.execute("PRAGMA table_info(lift_sessions)").fetchall()]
-    if 'exercise' not in cols:
-        conn.close()
-        return False
-
-    # Ensure every exercise name used in sessions exists in exercises table
-    if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
-        conn.execute("""
-            INSERT INTO exercises (name, category)
-            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other'
-            FROM lift_sessions
-            WHERE exercise IS NOT NULL AND exercise != ''
-            ON CONFLICT (name) DO NOTHING
-        """)
-    else:
-        conn.execute("""
-            INSERT OR IGNORE INTO exercises (name, category)
-            SELECT DISTINCT LOWER(TRIM(REPLACE(REPLACE(exercise, '-', ' '), '_', ' '))), 'Other'
-            FROM lift_sessions
-            WHERE exercise IS NOT NULL AND exercise != ''
-        """)
-
-    conn.execute("PRAGMA foreign_keys = OFF")
-    id_type = "SERIAL PRIMARY KEY" if "postgresql" in str(os.environ.get("DATABASE_URL")).lower() else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    conn.execute(f"""
-        CREATE TABLE lift_sessions_new (
-            id {id_type},
-            user_id INTEGER NOT NULL,
-            exercise_id INTEGER NOT NULL,
-            notes TEXT,
-            date TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(exercise_id) REFERENCES exercises(id)
-        )
-    """)
-    conn.execute("""
-        INSERT INTO lift_sessions_new (id, user_id, exercise_id, notes, date, created_at)
-        SELECT es.id, es.user_id, e.id, es.notes, es.date, es.created_at
-        FROM lift_sessions es
-        JOIN exercises e ON %s = %s
-    """ % (_sql_normalized_name('e.name'), _sql_normalized_name('es.exercise')))
-    if "postgresql" in str(os.environ.get("DATABASE_URL")).lower():
-        conn.execute("DROP TABLE lift_sessions CASCADE")
-    else:
-        conn.execute("DROP TABLE lift_sessions")
-    conn.execute("ALTER TABLE lift_sessions_new RENAME TO lift_sessions")
-    conn.commit()
-    conn.execute("PRAGMA foreign_keys = ON")
-    conn.close()
-    return True
-
-
-def _ensure_indexes():
-    """Create performance indexes idempotently."""
-    conn = get_db()
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_lift_sets_lift_session_id ON lift_sets(lift_session_id)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON lift_sessions(user_id)")
-    conn.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_session_order ON lift_sets(lift_session_id, order_index)")
-    conn.commit()
-    conn.close()
-
-
-def init_db():
-    conn = get_db()
-    db_url = str(os.environ.get("DATABASE_URL", "")).lower()
-    is_postgres = "postgres" in db_url
-    id_type = "SERIAL PRIMARY KEY" if is_postgres else "INTEGER PRIMARY KEY AUTOINCREMENT"
-    print(f"ℹ️ DB Type: {'Postgres' if is_postgres else 'SQLite'}")
-
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS users (
-            id {id_type},
-            username TEXT UNIQUE NOT NULL,
-            password_hash TEXT NOT NULL,
-            display_name TEXT,
-            created_at TEXT NOT NULL
-        )
-    """)
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS lift_sessions (
-            id {id_type},
-            user_id INTEGER NOT NULL,
-            exercise_id INTEGER NOT NULL,
-            notes TEXT,
-            date TEXT NOT NULL,
-            created_at TEXT NOT NULL,
-            workout_session_id INTEGER,
-            FOREIGN KEY(user_id) REFERENCES users(id),
-            FOREIGN KEY(exercise_id) REFERENCES exercises(id),
-            FOREIGN KEY(workout_session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE
-        )
-    """)
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS lift_sets (
-            id {id_type},
-            lift_session_id INTEGER NOT NULL,
-            weight_kg REAL NOT NULL,
-            reps INTEGER NOT NULL,
-            order_index INTEGER NOT NULL,
-            rpe REAL,
-            notes TEXT,
-            FOREIGN KEY(lift_session_id) REFERENCES lift_sessions(id) ON DELETE CASCADE
-        )
-    """)
-    if _table_exists(conn, 'lifts'):
-        migrate_legacy_lifts_to_sessions(conn)
-    
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS exercises (
-            id {id_type},
-            name TEXT UNIQUE NOT NULL,
-            category TEXT NOT NULL,
-            canonical_key TEXT
-        )
-    """)
-    
-    # Create user_profiles table
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS user_profiles (
-            user_id INTEGER PRIMARY KEY,
-            weight REAL,
-            height REAL,
-            preferred_unit TEXT DEFAULT 'kg',
-            goal TEXT,
-            training_frequency INTEGER DEFAULT 3,
-            photo_path TEXT,
-            created_at TEXT NOT NULL,
-            updated_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    """)
-    
-    # Create wods table
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS wods (
-            id {id_type},
-            user_id INTEGER NOT NULL,
-            name TEXT,
-            workout_text TEXT NOT NULL,
-            result TEXT,
-            notes TEXT,
-            date TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    """)
-    
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS runs (
-            id {id_type},
-            user_id INTEGER NOT NULL,
-            distance_km REAL NOT NULL,
-            time_seconds INTEGER NOT NULL,
-            unit TEXT NOT NULL DEFAULT 'km',
-            run_type TEXT NOT NULL DEFAULT 'Run',
-            date TEXT NOT NULL,
-            notes TEXT,
-            created_at TEXT NOT NULL,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    """)
-
-    def _safe_alter(sql):
-        try:
-            conn.execute(sql)
-        except Exception:
-            pass # Usually column already exists
-
-    _safe_alter("ALTER TABLE runs ADD COLUMN IF NOT EXISTS run_type TEXT NOT NULL DEFAULT 'Run'")
-    _safe_alter("ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS photo_path TEXT")
-    _safe_alter("ALTER TABLE lift_sessions ADD COLUMN IF NOT EXISTS workout_session_id INTEGER")
-        
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS workout_sessions (
-            id {id_type},
-            user_id INTEGER NOT NULL,
-            date TEXT NOT NULL,
-            title TEXT,
-            notes TEXT,
-            context TEXT,
-            time_cap_minutes INTEGER,
-            emom_interval INTEGER,
-            emom_duration INTEGER,
-            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY(user_id) REFERENCES users(id)
-        )
-    """)
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS set_groups (
-            id {id_type},
-            workout_session_id INTEGER NOT NULL,
-            order_index INTEGER NOT NULL,
-            type TEXT,
-            pattern_index INTEGER,
-            completed BOOLEAN DEFAULT TRUE,
-            shared_weight_kg REAL,
-            rest_seconds INTEGER,
-            FOREIGN KEY (workout_session_id) REFERENCES workout_sessions(id) ON DELETE CASCADE
-        )
-    """)
-    conn.execute(f"""
-        CREATE TABLE IF NOT EXISTS set_components (
-            id {id_type},
-            set_group_id INTEGER NOT NULL,
-            exercise_id INTEGER NOT NULL,
-            reps INTEGER,
-            weight_kg REAL,
-            rpe REAL,
-            notes TEXT,
-            time_seconds INTEGER,
-            distance_meters REAL,
-            calories REAL,
-            height_inch REAL,
-            target_type TEXT NOT NULL,
-            FOREIGN KEY (set_group_id) REFERENCES set_groups(id) ON DELETE CASCADE,
-            FOREIGN KEY (exercise_id) REFERENCES exercises(id)
-        )
-    """)
-    
-    conn.commit()
-    conn.close()
-
-    # Ensure exercises.canonical_key exists and is backfilled BEFORE any
-    # dedupe/FK migration that relies on it.
-    _migrate_exercise_canonical_key()
-
-    # Populate and deduplicate exercises (needed before FK migration)
-    populate_exercises_if_needed()
-    clean_up_duplicate_exercises()
-
-    # Migrate exercise TEXT column to exercise_id FK (one-time, idempotent)
-    migration_performed = _migrate_lift_sessions_to_fk()
-
-    # Re-run dedupe after migration because legacy session text can introduce
-    # normalized duplicates that were not present before the FK rewrite.
-    if migration_performed:
-        clean_up_duplicate_exercises()
-
-    # Now that duplicates are collapsed, enforce uniqueness at the DB level
-    # so no future code path can re-introduce a duplicate canonical_key.
-    _ensure_canonical_key_unique_index()
-
-    # Create/verify performance indexes (after migration so they land on final table)
-    _ensure_indexes()
-
-    # Migrate workout_sessions context columns (safe, idempotent)
-    _migrate_workout_sessions_context_columns()
-
-    # Load exercises into memory
-    load_exercises_from_db()
-
-def _migrate_workout_sessions_context_columns():
-    """Safely add context metadata columns to workout_sessions and rest_seconds to set_groups."""
-    conn = get_db()
-
-    ws_cols = {row[1] for row in conn.execute("PRAGMA table_info(workout_sessions)").fetchall()}
-    ws_migrations = [
-        ("context",          "ALTER TABLE workout_sessions ADD COLUMN context TEXT"),
-        ("time_cap_minutes", "ALTER TABLE workout_sessions ADD COLUMN time_cap_minutes INTEGER"),
-        ("emom_interval",    "ALTER TABLE workout_sessions ADD COLUMN emom_interval INTEGER"),
-        ("emom_duration",    "ALTER TABLE workout_sessions ADD COLUMN emom_duration INTEGER"),
-    ]
-    for col, sql in ws_migrations:
-        if col not in ws_cols:
-            conn.execute(sql)
-
-    sg_cols = {row[1] for row in conn.execute("PRAGMA table_info(set_groups)").fetchall()}
-    if "rest_seconds" not in sg_cols:
-        conn.execute("ALTER TABLE set_groups ADD COLUMN rest_seconds INTEGER")
-
-    conn.commit()
-    conn.close()
-
-
 def populate_exercises_if_needed():
+    """Seed exercises table with baseline catalog if empty."""
     conn = get_db()
     count = conn.execute("SELECT COUNT(*) FROM exercises").fetchone()[0]
     
@@ -2747,8 +2444,6 @@ def create_workout_session():
     ws_type = payload.get('type') or payload.get('name')
     notes = payload.get('notes', '')
     result = payload.get('result')
-    if result:
-        notes = f"{notes}\nResult: {result}".strip()
 
     context          = payload.get('context') or None
     time_cap_minutes = payload.get('time_cap_minutes')
@@ -2801,9 +2496,9 @@ def create_workout_session():
 
         ws_cursor = conn.execute(
             """INSERT INTO workout_sessions
-               (user_id, date, title, notes, context, time_cap_minutes, emom_interval, emom_duration)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (user_id, date_str, ws_type, notes, context, time_cap_minutes, emom_interval, emom_duration)
+               (user_id, date, title, notes, context, time_cap_minutes, emom_interval, emom_duration, result)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (user_id, date_str, ws_type, notes, context, time_cap_minutes, emom_interval, emom_duration, result)
         )
         ws_id = ws_cursor.lastrowid
         
@@ -2906,7 +2601,7 @@ def workout_history():
 
     rows = conn.execute(f"""
         SELECT ws.id, ws.date, ws.title, ws.notes, ws.created_at,
-               ws.context, ws.time_cap_minutes, ws.emom_interval, ws.emom_duration,
+               ws.context, ws.time_cap_minutes, ws.emom_interval, ws.emom_duration, ws.result,
                COUNT(DISTINCT sg.id) AS group_count,
                COUNT(sc.id) AS component_count
         FROM workout_sessions ws
@@ -2955,6 +2650,7 @@ def workout_history():
             'emom_duration': row['emom_duration'],
             'group_count': row['group_count'],
             'component_count': row['component_count'],
+            'result': row['result'],
             'groups': group_list,
         })
 
@@ -3018,6 +2714,7 @@ def edit_workout_session(id):
 
     name     = request.form.get("name",  "").strip() or None
     notes    = request.form.get("notes", "").strip() or None
+    result   = request.form.get("result", "").strip() or None
     date_str = request.form.get("date",  "").strip() or existing["date"]
     
     context          = request.form.get("context") or None
@@ -3044,9 +2741,9 @@ def edit_workout_session(id):
 
     conn.execute(
         """UPDATE workout_sessions 
-           SET title = ?, notes = ?, date = ?, context = ?, time_cap_minutes = ?, emom_interval = ?, emom_duration = ? 
+           SET title = ?, notes = ?, result = ?, date = ?, context = ?, time_cap_minutes = ?, emom_interval = ?, emom_duration = ? 
            WHERE id = ? AND user_id = ?""",
-        (name, notes, date_str, context, time_cap_minutes, emom_interval, emom_duration, id, user_id)
+        (name, notes, result, date_str, context, time_cap_minutes, emom_interval, emom_duration, id, user_id)
     )
 
     # Update individual set_components (exercise name, reps, weight_kg)
@@ -3171,6 +2868,7 @@ def edit_workout_session(id):
                 "time_cap_minutes": time_cap_minutes,
                 "emom_interval": emom_interval,
                 "emom_duration": emom_duration,
+                "result": result,
                 "groups": updated_groups,
             }
         })
@@ -3980,11 +3678,11 @@ def progress():
     )
 
 
-# Initialize database and load cache at startup
+# Load exercise cache at startup
 try:
-    init_db()
+    load_exercises_from_db()
 except Exception as e:
-    print(f"⚠️ Could not initialize DB or load cache: {e}")
+    print(f"⚠️ Could not load exercise cache: {e}")
 
 
 if __name__ == "__main__":

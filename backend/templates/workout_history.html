@@ -112,6 +112,12 @@
                             <strong>Notes:</strong> {{ session.notes.replace('\n', '<br>')|safe }}
                         </div>
                         {% endif %}
+
+                        {% if session.result %}
+                        <div class="card-description" data-role="session-result" style="margin-top: 4px; color: var(--accent-primary); font-weight: 600;">
+                            <strong>Result:</strong> {{ session.result }}
+                        </div>
+                        {% endif %}
                     </div>
 
                     <div class="form-actions">
@@ -200,6 +206,11 @@
                             <div class="form-group">
                                 <label class="form-label">Notes (Optional)</label>
                                 <textarea class="form-textarea" name="notes" rows="2">{{ session.notes or '' }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Result (Optional)</label>
+                                <input class="form-input" type="text" name="result" value="{{ session.result or '' }}" placeholder="e.g. 12:45, 5 rounds">
                             </div>
 
                             <div class="form-actions">
@@ -550,6 +561,27 @@ document.addEventListener('DOMContentLoaded', function () {
                     }
                 } else if (notesEl) {
                     notesEl.remove();
+                }
+
+                // Update result display
+                var resultEl = row ? row.querySelector('[data-role="session-result"]') : null;
+                if (ws.result) {
+                    var resultHtml = '<strong>Result:</strong> ' + escapeHtml(ws.result);
+                    if (resultEl) {
+                        resultEl.innerHTML = resultHtml;
+                    } else {
+                        resultEl = document.createElement('div');
+                        resultEl.className = 'card-description';
+                        resultEl.setAttribute('data-role', 'session-result');
+                        resultEl.style.marginTop = '4px';
+                        resultEl.style.color = 'var(--accent-primary)';
+                        resultEl.style.fontWeight = '600';
+                        resultEl.innerHTML = resultHtml;
+                        var rc3 = row ? row.querySelector('.history-row-content') : null;
+                        if (rc3) rc3.appendChild(resultEl);
+                    }
+                } else if (resultEl) {
+                    resultEl.remove();
                 }
 
                 // Move row if date changed

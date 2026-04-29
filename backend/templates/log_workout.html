@@ -420,10 +420,32 @@
             });
 
             // Summary
-            let summaryHtml = '<strong>Structure:</strong> ' + groupData.map(g =>
-                `Group ${g.id + 1} (${g.exercises.map(e => `${e.display} ${e.name}`).join(', ')}) + ${g.rest} rest`
-            ).join(' → ') + ` [x${repeatCount} rounds]`;
-            if (timeCap) summaryHtml += `<br><strong>Time cap:</strong> ${timeCap} min`;
+            let summaryHtml = '<div class="summary-structure-label">Structure:</div>';
+            
+            summaryHtml += groupData.map((g, gi) => {
+                let groupHtml = '<div class="summary-group">';
+                if (groupData.length > 1) {
+                    groupHtml += `<div class="summary-group-header">Group ${gi + 1}</div>`;
+                }
+                
+                groupHtml += g.exercises.map(e => 
+                    `<div class="summary-exercise">${e.display} ${e.name}</div>`
+                ).join('');
+                
+                if (g.rest && g.rest !== '0m 0s') {
+                    groupHtml += `<div class="summary-rest">Rest: ${g.rest}</div>`;
+                }
+                
+                groupHtml += '</div>';
+                return groupHtml;
+            }).join('');
+            
+            const roundText = repeatCount === 1 ? 'round' : 'rounds';
+            summaryHtml += `<div class="summary-rounds">[x${repeatCount} ${roundText}]</div>`;
+            
+            if (timeCap) {
+                summaryHtml += `<div class="summary-time-cap"><strong>Time cap:</strong> ${timeCap} min</div>`;
+            }
             summaryContainer.innerHTML = summaryHtml;
 
             // Table
