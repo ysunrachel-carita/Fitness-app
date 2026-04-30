@@ -638,7 +638,7 @@ def migrate_legacy_lifts_to_sessions(conn):
         cursor = conn.execute(
             """
             INSERT INTO lift_sessions (user_id, exercise, notes, date, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """,
             (row['user_id'], row['exercise'], row['notes'], session_date, created_at)
         )
@@ -648,7 +648,7 @@ def migrate_legacy_lifts_to_sessions(conn):
             conn.execute(
                 """
                 INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
-                VALUES (?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s)
                 """,
                 (lift_session_id, weight_value, reps_value, order_index, None, None)
             )
@@ -661,23 +661,23 @@ def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=Non
         SELECT es.id, es.user_id, e.name as exercise, es.notes, es.date, es.created_at
         FROM lift_sessions es
         JOIN exercises e ON es.exercise_id = e.id
-        WHERE es.user_id = ?
+        WHERE es.user_id = %s
     """
     params = [user_id]
 
     if date_range in ('7', '30'):
         cutoff = (date.today() - timedelta(days=int(date_range))).isoformat()
-        query += " AND es.date >= ?"
+        query += " AND es.date >= %s"
         params.append(cutoff)
 
     if exercise:
-        query += " AND e.name = ?"
+        query += " AND e.name = %s"
         params.append(exercise)
 
     query += f" ORDER BY es.date {'DESC' if order_desc else 'ASC'}, es.id {'DESC' if order_desc else 'ASC'}"
 
     if limit is not None:
-        query += " LIMIT ?"
+        query += " LIMIT %s"
         params.append(limit)
 
     session_rows = conn.execute(query, params).fetchall()
@@ -685,7 +685,7 @@ def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=Non
         return []
 
     lift_session_ids = [row['id'] for row in session_rows]
-    placeholders = ','.join(['?'] * len(lift_session_ids))
+    placeholders = ','.join(['%s'] * len(lift_session_ids))
     set_rows = conn.execute(
         f"""
         SELECT lift_session_id, id as set_id, weight_kg, reps, order_index, rpe, notes
@@ -734,7 +734,7 @@ def fetch_workout_sessions_as_lifts(conn, user_id, date_range=None, limit=None, 
     date_clause = ""
     if date_range in ('7', '30'):
         cutoff = (date.today() - timedelta(days=int(date_range))).isoformat()
-        date_clause = " AND ws.date >= ?"
+        date_clause = " AND ws.date >= %s"
         params.append(cutoff)
 
     rows = conn.execute(f"""
@@ -744,7 +744,7 @@ def fetch_workout_sessions_as_lifts(conn, user_id, date_range=None, limit=None, 
         JOIN set_groups sg ON sg.workout_session_id = ws.id
         JOIN set_components sc ON sc.set_group_id = sg.id
         JOIN exercises e ON sc.exercise_id = e.id
-        WHERE ws.user_id = ? {date_clause}
+        WHERE ws.user_id = %s {date_clause}
         ORDER BY ws.date {'DESC' if order_desc else 'ASC'}, ws.id {'DESC' if order_desc else 'ASC'}
     """, params).fetchall()
 
@@ -767,7 +767,7 @@ def fetch_workout_sessions_as_lifts(conn, user_id, date_range=None, limit=None, 
     if not ws_ids:
         return []
 
-    placeholders = ','.join(['?'] * len(ws_ids))
+    placeholders = ','.join(['%s'] * len(ws_ids))
     comp_rows = conn.execute(f"""
         SELECT sg.workout_session_id AS ws_id,
                sc.exercise_id,
@@ -834,14 +834,14 @@ def inject_profile_photo():
         try:
             conn = get_db()
             profile = conn.execute(
-                'SELECT photo_path FROM user_profiles WHERE user_id = ?',
+                'SELECT photo_path FROM user_profiles WHERE user_id = %s',
                 (session['user_id'],)
             ).fetchone()
             if profile and profile['photo_path']:
                 photo_path = profile['photo_path']
             
             user = conn.execute(
-                'SELECT display_name FROM users WHERE id = ?',
+                'SELECT display_name FROM users WHERE id = %s',
                 (session['user_id'],)
             ).fetchone()
             if user and user['display_name']:
@@ -980,171 +980,81 @@ def normalize_exercise_input(user_input):
     return _friendly_display_name(user_input) or None
 
 # --- DATABASE ---
-class PgCursorWrapper:
-    def __init__(self, cursor, lastrowid=None, pragma_mock_rows=None):
+
+class DBCursor:
+    """Wraps a psycopg2 cursor. Provides .fetchall(), .fetchone(),
+    .lastrowid (populated after INSERT ... RETURNING id), and .rowcount."""
+
+    def __init__(self, cursor, lastrowid=None):
         self._cursor = cursor
         self.lastrowid = lastrowid
-        self._pragma_mock_rows = pragma_mock_rows
 
     def fetchall(self):
-        if self._pragma_mock_rows is not None:
-            return self._pragma_mock_rows
-        if self._cursor:
-            return self._cursor.fetchall()
-        return []
+        return self._cursor.fetchall() or []
 
     def fetchone(self):
-        if self._pragma_mock_rows is not None:
-            return self._pragma_mock_rows[0] if self._pragma_mock_rows else None
-        if self._cursor:
-            return self._cursor.fetchone()
-        return None
+        return self._cursor.fetchone()
 
     def __iter__(self):
-        if self._pragma_mock_rows is not None:
-            return iter(self._pragma_mock_rows)
-        if self._cursor:
-            return iter(self._cursor)
-        return iter([])
+        return iter(self._cursor)
 
     @property
     def rowcount(self):
-        if self._cursor:
-            return self._cursor.rowcount
-        return 0
+        return self._cursor.rowcount
 
-class PgWrapper:
+
+class DBConnection:
+    """Thin wrapper around a psycopg2 connection.
+    Provides conn.execute() / conn.executemany() using native PostgreSQL SQL.
+    All queries must use %s placeholders."""
+
     def __init__(self, conn):
         self.conn = conn
 
     def execute(self, query, params=None):
-        # 1. Handle PRAGMA foreign_keys
-        if "PRAGMA foreign_keys" in query:
-            return PgCursorWrapper(None)
-            
-        # 2. Handle PRAGMA table_info
-        if "PRAGMA table_info" in query:
-            m = re.search(r"table_info\((.*?)\)", query)
-            if m:
-                table_name = m.group(1).strip("'\"")
-                pg_query = f"SELECT column_name FROM information_schema.columns WHERE table_name = '{table_name}' AND table_schema = current_schema()"
-                with self.conn.cursor() as cursor:
-                    cursor.execute(pg_query)
-                    rows = cursor.fetchall()
-                # sqlite returns (cid, name, type, notnull, dflt_value, pk)
-                mock_rows = [(0, row[0], 'TEXT', 0, None, 0) for row in rows]
-                return PgCursorWrapper(None, pragma_mock_rows=mock_rows)
-
-        # 3. Handle sqlite_master check (common in _table_exists)
-        if "sqlite_master" in query:
-            query = query.replace("sqlite_master", "information_schema.tables") \
-                         .replace("type='table' AND name =", "table_name =")
-
-        # 4. Handle SUBSTR on dates (Postgres TIMESTAMP needs casting or different function)
-        # We'll translate the most common pattern used in this app
-        pg_query = query.replace('?', '%s')
-        pg_query = pg_query.replace('SUBSTR(date, 1, 10)', 'date::date::text')
-        pg_query = pg_query.replace('SUBSTR(s.date, 1, 10)', 's.date::date::text')
-        pg_query = pg_query.replace('SUBSTR(ws.date, 1, 10)', 'ws.date::date::text')
-
-        is_insert = pg_query.strip().upper().startswith("INSERT")
-        needs_returning = is_insert and "RETURNING" not in pg_query.upper()
-        
-        if needs_returning:
-            # Avoid appending RETURNING to tables that don't have an 'id' column
-            if "INSERT INTO user_profiles" in pg_query.upper():
-                pass
-            else:
-                pg_query = pg_query.rstrip("; \n\r\t") + " RETURNING id"
-                
-        cursor = self.conn.cursor(cursor_factory=DictCursor)
-        
+        cur = self.conn.cursor(cursor_factory=DictCursor)
         try:
-            if params:
-                cursor.execute(pg_query, params)
-            else:
-                cursor.execute(pg_query)
+            cur.execute(query, list(params) if params else None)
         except Exception as e:
-            # Log the error for easier debugging on Render
             print(f"❌ DATABASE ERROR: {e}")
-            print(f"QUERY: {pg_query}")
+            print(f"QUERY: {query}")
             self.conn.rollback()
-            raise e
-            
-        self.conn.commit() # Ensure changes are saved
-            
+            raise
+        self.conn.commit()
+
+        # Capture lastrowid if the query used RETURNING id
         lastrowid = None
-        if needs_returning and "RETURNING id" in pg_query:
-            row = cursor.fetchone()
+        if query.strip().upper().startswith("INSERT") and "RETURNING ID" in query.upper():
+            row = cur.fetchone()
             if row:
                 lastrowid = row[0]
-                
-        return PgCursorWrapper(cursor, lastrowid)
+
+        return DBCursor(cur, lastrowid)
 
     def executemany(self, query, params_list):
-        pg_query = query.replace('?', '%s')
-        cursor = self.conn.cursor(cursor_factory=DictCursor)
+        cur = self.conn.cursor(cursor_factory=DictCursor)
         try:
-            cursor.executemany(pg_query, params_list)
+            cur.executemany(query, params_list)
         except Exception as e:
             print(f"❌ DATABASE ERROR (executemany): {e}")
-            print(f"QUERY: {pg_query}")
+            print(f"QUERY: {query}")
             self.conn.rollback()
-            raise e
+            raise
         self.conn.commit()
-        return PgCursorWrapper(cursor)
+        return DBCursor(cur)
 
-    def commit(self):
-        self.conn.commit()
+    def commit(self):   self.conn.commit()
+    def rollback(self): self.conn.rollback()
+    def close(self):    self.conn.close()
 
-    def close(self):
-        self.conn.close()
-
-    def rollback(self):
-        self.conn.rollback()
-
-    @property
-    def row_factory(self):
-        pass
-
-    @row_factory.setter
-    def row_factory(self, val):
-        pass
 
 def get_db():
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise ValueError("DATABASE_URL environment variable is not set")
-    
-    max_retries = 10
-    retry_delay = 3
-    for attempt in range(max_retries):
-        try:
-            # Mask password in logs
-            masked_url = database_url
-            if "@" in database_url:
-                parts = database_url.split("@")
-                masked_url = parts[0].split(":")[0] + ":****@" + parts[1]
-            
-            # Extract host for logging
-            host = "unknown"
-            if "@" in database_url:
-                host = database_url.split("@")[1].split(":")[0].split("/")[0]
-            elif "localhost" in database_url or "127.0.0.1" in database_url:
-                host = "localhost"
-
-            print(f"📡 Connecting to database on {host} (attempt {attempt + 1})...")
-            conn = psycopg2.connect(database_url.strip())
-            print(f"✅ Database connected successfully to {host}.")
-            return PgWrapper(conn)
-        except Exception as e:
-            if attempt < max_retries - 1:
-                print(f"⚠️ Database connection attempt {attempt + 1} failed ({type(e).__name__}): {e}. Retrying in {retry_delay}s...")
-                time.sleep(retry_delay)
-            else:
-                print(f"❌ Could not connect to database after {max_retries} attempts.")
-                print(f"DATABASE_URL used: {masked_url}")
-                raise e
+    conn = psycopg2.connect(database_url.strip())
+    print("✅ Database connected.")
+    return DBConnection(conn)
 
 def get_all_exercises():
     conn = get_db()
@@ -1255,7 +1165,7 @@ def resolve_exercise(conn, user_input):
         return None, None
 
     row = conn.execute(
-        'SELECT id, name FROM exercises WHERE canonical_key = ?', (key,)
+        'SELECT id, name FROM exercises WHERE canonical_key = %s', (key,)
     ).fetchone()
     if row:
         return row['id'], row['name']
@@ -1263,7 +1173,7 @@ def resolve_exercise(conn, user_input):
     display_name = _friendly_display_name(user_input) or key
     cursor = conn.execute(
         'INSERT INTO exercises (name, category, canonical_key) '
-        'VALUES (?, ?, ?)',
+        'VALUES (%s, %s, %s) RETURNING id',
         (display_name, 'Other', key),
     )
     # Incrementally refresh the in-memory caches so the next lookup is a cache hit.
@@ -1395,7 +1305,7 @@ def populate_exercises_if_needed():
 
         conn.executemany(
             "INSERT INTO exercises (name, category, canonical_key) "
-            "VALUES (?, ?, ?)",
+            "VALUES (%s, %s, %s)",
             rows,
         )
         conn.commit()
@@ -1443,16 +1353,16 @@ def clean_up_duplicate_exercises():
             # Ensure the survivor carries the canonical_key explicitly.
             if not rows[0]['canonical_key']:
                 conn.execute(
-                    "UPDATE exercises SET canonical_key = ? WHERE id = ?",
+                    "UPDATE exercises SET canonical_key = %s WHERE id = %s",
                     (key, keep_id),
                 )
             if len(rows) < 2:
                 continue
 
             duplicate_ids = [row['id'] for row in rows[1:]]
-            placeholders = ','.join('?' for _ in duplicate_ids)
+            placeholders = ','.join('%s' for _ in duplicate_ids)
             conn.execute(
-                f"UPDATE lift_sessions SET exercise_id = ? "
+                f"UPDATE lift_sessions SET exercise_id = %s "
                 f"WHERE exercise_id IN ({placeholders})",
                 [keep_id, *duplicate_ids],
             )
@@ -1489,7 +1399,7 @@ def _migrate_exercise_canonical_key():
             if not key:
                 continue
             conn.execute(
-                "UPDATE exercises SET canonical_key = ? WHERE id = ?",
+                "UPDATE exercises SET canonical_key = %s WHERE id = %s",
                 (key, row['id']),
             )
         conn.commit()
@@ -1513,14 +1423,14 @@ def _ensure_canonical_key_unique_index():
 
 def get_user(username):
     conn = get_db()
-    row = conn.execute("SELECT * FROM users WHERE username = ?", (username,)).fetchone()
+    row = conn.execute("SELECT * FROM users WHERE username = %s", (username,)).fetchone()
     conn.close()
     return row
 
 def create_user(username, password):
     conn = get_db()
     conn.execute(
-        "INSERT INTO users (username, password_hash, display_name, created_at) VALUES (?, ?, ?, ?)",
+        "INSERT INTO users (username, password_hash, display_name, created_at) VALUES (%s, %s, %s, %s)",
         (username, generate_password_hash(password), username, datetime.utcnow().isoformat())
     )
     conn.commit()
@@ -1575,17 +1485,17 @@ def dashboard():
         '''
         SELECT COUNT(DISTINCT workout_day) AS weekly_sessions
         FROM (
-            SELECT SUBSTR(date, 1, 10) AS workout_day
+            SELECT date::date::text AS workout_day
             FROM lift_sessions
-            WHERE user_id = ? AND SUBSTR(date, 1, 10) BETWEEN ? AND ?
+            WHERE user_id = %s AND date::date::text BETWEEN %s AND %s
             UNION
-            SELECT SUBSTR(date, 1, 10) AS workout_day
+            SELECT date::date::text AS workout_day
             FROM workout_sessions
-            WHERE user_id = ? AND SUBSTR(date, 1, 10) BETWEEN ? AND ?
+            WHERE user_id = %s AND date::date::text BETWEEN %s AND %s
             UNION
-            SELECT SUBSTR(date, 1, 10) AS workout_day
+            SELECT date::date::text AS workout_day
             FROM runs
-            WHERE user_id = ? AND SUBSTR(date, 1, 10) BETWEEN ? AND ?
+            WHERE user_id = %s AND date::date::text BETWEEN %s AND %s
         ) AS combined_workouts
         ''',
         (user_id, week_start_str, today_str, user_id, week_start_str, today_str, user_id, week_start_str, today_str)
@@ -1599,13 +1509,13 @@ def dashboard():
         SELECT es.id, es.date, e.name as title, es.notes
         FROM lift_sessions es
         JOIN exercises e ON es.exercise_id = e.id
-        WHERE es.user_id = ? AND es.date BETWEEN ? AND ?
+        WHERE es.user_id = %s AND es.date BETWEEN %s AND %s
     ''', (user_id, week_start_str, today_str)).fetchall()
 
     lift_session_ids = [l['id'] for l in lifts_this_week]
     sets_by_session = defaultdict(list)
     if lift_session_ids:
-        placeholders = ','.join(['?'] * len(lift_session_ids))
+        placeholders = ','.join(['%s'] * len(lift_session_ids))
         all_sets = conn.execute(f'''
             SELECT lift_session_id, weight_kg, reps, order_index 
             FROM lift_sets
@@ -1643,7 +1553,7 @@ def dashboard():
     workouts_this_week = conn.execute('''
         SELECT id, date, title, context, time_cap_minutes, notes
         FROM workout_sessions
-        WHERE user_id = ? AND date BETWEEN ? AND ?
+        WHERE user_id = %s AND date BETWEEN %s AND %s
     ''', (user_id, week_start_str, today_str)).fetchall()
 
     workout_ids = [w['id'] for w in workouts_this_week]
@@ -1651,7 +1561,7 @@ def dashboard():
     comps_by_group = defaultdict(list)
 
     if workout_ids:
-        placeholders = ','.join(['?'] * len(workout_ids))
+        placeholders = ','.join(['%s'] * len(workout_ids))
         all_groups = conn.execute(f'''
             SELECT id, workout_session_id, order_index, type, shared_weight_kg
             FROM set_groups WHERE workout_session_id IN ({placeholders})
@@ -1662,7 +1572,7 @@ def dashboard():
         
         group_ids = [g['id'] for g in all_groups]
         if group_ids:
-            g_placeholders = ','.join(['?'] * len(group_ids))
+            g_placeholders = ','.join(['%s'] * len(group_ids))
             all_comps = conn.execute(f'''
                 SELECT sc.set_group_id, e.name AS exercise, sc.reps, sc.weight_kg
                 FROM set_components sc
@@ -1703,7 +1613,7 @@ def dashboard():
     runs_this_week = conn.execute('''
         SELECT id, date, run_type, distance_km, time_seconds, unit, notes
         FROM runs
-        WHERE user_id = ? AND date BETWEEN ? AND ?
+        WHERE user_id = %s AND date BETWEEN %s AND %s
     ''', (user_id, week_start_str, today_str)).fetchall()
 
     for r in runs_this_week:
@@ -1744,12 +1654,12 @@ def profile():
     user_id = session["user_id"]
 
     # Get user display name
-    user = conn.execute('SELECT display_name FROM users WHERE id = ?', (user_id,)).fetchone()
+    user = conn.execute('SELECT display_name FROM users WHERE id = %s', (user_id,)).fetchone()
     display_name = user['display_name'] if user and user['display_name'] else session.get('username', '')
 
     # Get user profile data
     cursor = conn.execute(
-        'SELECT * FROM user_profiles WHERE user_id = ?', (user_id,)
+        'SELECT * FROM user_profiles WHERE user_id = %s', (user_id,)
     )
     profile = cursor.fetchone()
 
@@ -1833,12 +1743,12 @@ def update_profile():
 
     # Handle display name update
     if display_name:
-        conn.execute('UPDATE users SET display_name = ? WHERE id = ?', (display_name, user_id))
+        conn.execute('UPDATE users SET display_name = %s WHERE id = %s', (display_name, user_id))
         session['display_name'] = display_name
 
     # Handle photo upload — preserve existing photo if no new one uploaded
     existing = conn.execute(
-        'SELECT photo_path FROM user_profiles WHERE user_id = ?', (user_id,)
+        'SELECT photo_path FROM user_profiles WHERE user_id = %s', (user_id,)
     ).fetchone()
     photo_path = existing['photo_path'] if existing and existing['photo_path'] else None
 
@@ -1891,7 +1801,7 @@ def update_profile():
     
     # Check if profile exists
     cursor = conn.execute(
-        'SELECT user_id FROM user_profiles WHERE user_id = ?', (user_id,)
+        'SELECT user_id FROM user_profiles WHERE user_id = %s', (user_id,)
     )
     existing_profile = cursor.fetchone()
     
@@ -1901,16 +1811,16 @@ def update_profile():
         # Update existing profile
         conn.execute("""
             UPDATE user_profiles 
-            SET weight = ?, height = ?, preferred_unit = ?, goal = ?, 
-                training_frequency = ?, photo_path = ?, updated_at = ?
-            WHERE user_id = ?
+            SET weight = %s, height = %s, preferred_unit = %s, goal = %s, 
+                training_frequency = %s, photo_path = %s, updated_at = %s
+            WHERE user_id = %s
         """, (weight_val, height_val, preferred_unit, goal, training_freq_val, photo_path, now, user_id))
     else:
         # Create new profile
         conn.execute("""
             INSERT INTO user_profiles 
             (user_id, weight, height, preferred_unit, goal, training_frequency, photo_path, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (user_id, weight_val, height_val, preferred_unit, goal, training_freq_val, photo_path, now, now))
     
     conn.commit()
@@ -1955,7 +1865,7 @@ def change_password():
         return render_template("change_password.html")
 
     conn = get_db()
-    user = conn.execute('SELECT password_hash FROM users WHERE id = ?', (user_id,)).fetchone()
+    user = conn.execute('SELECT password_hash FROM users WHERE id = %s', (user_id,)).fetchone()
     if not check_password_hash(user['password_hash'], current_password):
         flash("Current password is incorrect.", "error")
         conn.close()
@@ -1967,7 +1877,7 @@ def change_password():
         conn.close()
         return render_template("change_password.html")
 
-    conn.execute('UPDATE users SET password_hash = ? WHERE id = ?',
+    conn.execute('UPDATE users SET password_hash = %s WHERE id = %s',
                  (generate_password_hash(new_password), user_id))
     conn.commit()
     conn.close()
@@ -2136,7 +2046,7 @@ def log_lifts():
             session_cursor = conn.execute(
                 """
                 INSERT INTO lift_sessions (user_id, exercise_id, notes, date, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s) RETURNING id
                 """,
                 (user_id, exercise_id, notes_val, entry_date, created_at)
             )
@@ -2159,14 +2069,14 @@ def log_lifts():
                 conn.execute(
                     """
                     INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                     """,
                     (lift_session_id, weight_val, reps_val, index, None, None)
                 )
                 cleaned_sets.append({'weight_kg': weight_val, 'reps': reps_val, 'order_index': index})
 
             if not cleaned_sets:
-                conn.execute('DELETE FROM lift_sessions WHERE id = ?', (lift_session_id,))
+                conn.execute('DELETE FROM lift_sessions WHERE id = %s', (lift_session_id,))
                 conn.commit()
                 conn.close()
                 return redirect(url_for('log_lifts'))
@@ -2187,9 +2097,9 @@ def log_lifts():
                 """
                 SELECT id
                 FROM lift_sessions
-                WHERE user_id = ?
-                  AND exercise_id = ?
-                  AND date < ?
+                WHERE user_id = %s
+                  AND exercise_id = %s
+                  AND date < %s
                 ORDER BY date DESC
                 LIMIT 1
                 """,
@@ -2287,7 +2197,7 @@ def get_all_sets_for_exercise(conn, exercise_id, user_id):
         SELECT se.weight_kg as weight, se.reps, es.date, 1 as completed
         FROM lift_sets se
         JOIN lift_sessions es ON se.lift_session_id = es.id
-        WHERE es.user_id = ? AND es.exercise_id = ?
+        WHERE es.user_id = %s AND es.exercise_id = %s
         
         UNION ALL
         
@@ -2295,7 +2205,7 @@ def get_all_sets_for_exercise(conn, exercise_id, user_id):
         FROM set_components sc
         JOIN set_groups sg ON sc.set_group_id = sg.id
         JOIN workout_sessions ws ON sg.workout_session_id = ws.id
-        WHERE ws.user_id = ? AND sc.exercise_id = ?
+        WHERE ws.user_id = %s AND sc.exercise_id = %s
         AND NOT (COALESCE(sc.weight_kg, sg.shared_weight_kg) IS NULL AND sc.reps IS NULL)
     """
     rows = conn.execute(query, (user_id, exercise_id, user_id, exercise_id)).fetchall()
@@ -2367,7 +2277,7 @@ def exercise_recent_performance():
         SELECT se.weight_kg, se.reps, es.date, se.order_index as ord
         FROM lift_sets se
         JOIN lift_sessions es ON se.lift_session_id = es.id
-        WHERE es.user_id = ? AND es.exercise_id = ?
+        WHERE es.user_id = %s AND es.exercise_id = %s
           AND (se.reps > 0 OR se.weight_kg > 0)
 
         UNION ALL
@@ -2376,7 +2286,7 @@ def exercise_recent_performance():
         FROM set_components sc
         JOIN set_groups sg ON sc.set_group_id = sg.id
         JOIN workout_sessions ws ON sg.workout_session_id = ws.id
-        WHERE ws.user_id = ? AND sc.exercise_id = ?
+        WHERE ws.user_id = %s AND sc.exercise_id = %s
           AND (sc.reps > 0 OR COALESCE(sc.weight_kg, sg.shared_weight_kg) > 0)
 
         ORDER BY date DESC, ord ASC
@@ -2492,12 +2402,10 @@ def create_workout_session():
                     pass
 
     try:
-        conn.execute('BEGIN')
-
         ws_cursor = conn.execute(
             """INSERT INTO workout_sessions
                (user_id, date, title, notes, context, time_cap_minutes, emom_interval, emom_duration, result)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id""",
             (user_id, date_str, ws_type, notes, context, time_cap_minutes, emom_interval, emom_duration, result)
         )
         ws_id = ws_cursor.lastrowid
@@ -2518,7 +2426,7 @@ def create_workout_session():
                     sg_cursor = conn.execute(
                         """INSERT INTO set_groups 
                            (workout_session_id, order_index, type, pattern_index, completed, shared_weight_kg, rest_seconds) 
-                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id""",
                         (ws_id, order_index, group_type, pattern_index, completed, shared_weight_kg, rest_seconds)
                     )
                     sg_id = sg_cursor.lastrowid
@@ -2551,7 +2459,7 @@ def create_workout_session():
                             conn.execute(
                                 """INSERT INTO set_components 
                                    (set_group_id, exercise_id, reps, weight_kg, rpe, notes, time_seconds, distance_meters, calories, height_inch, target_type)
-                                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
                                 (sg_id, exercise_id, reps, weight_kg, rpe, c_notes, time_sec, distance_meters, calories, height_inch, target_type)
                             )
                     
@@ -2581,7 +2489,7 @@ def workout_history():
     params = [user_id]
     if date_range:
         params.append(date_range)
-        date_clause = "AND CAST(julianday('now') - julianday(ws.date) AS INTEGER) <= ?"
+        date_clause = "AND CAST(julianday('now') - julianday(ws.date) AS INTEGER) <= %s"
 
     exercise_clause = ""
     if exercise_filter:
@@ -2592,7 +2500,7 @@ def workout_history():
                     SELECT sg.workout_session_id
                     FROM set_groups sg
                     JOIN set_components sc ON sc.set_group_id = sg.id
-                    WHERE sc.exercise_id = ?
+                    WHERE sc.exercise_id = %s
                 )
             """
             params.append(exercise_id)
@@ -2607,7 +2515,7 @@ def workout_history():
         FROM workout_sessions ws
         LEFT JOIN set_groups sg ON sg.workout_session_id = ws.id
         LEFT JOIN set_components sc ON sc.set_group_id = sg.id
-        WHERE ws.user_id = ? {date_clause} {exercise_clause}
+        WHERE ws.user_id = %s {date_clause} {exercise_clause}
         GROUP BY ws.id
         ORDER BY ws.date DESC, ws.created_at DESC
     """, params).fetchall()
@@ -2619,7 +2527,7 @@ def workout_history():
         groups = conn.execute("""
             SELECT sg.id, sg.order_index, sg.type, sg.rest_seconds
             FROM set_groups sg
-            WHERE sg.workout_session_id = ?
+            WHERE sg.workout_session_id = %s
             ORDER BY sg.order_index
         """, (ws_id,)).fetchall()
 
@@ -2630,7 +2538,7 @@ def workout_history():
                        sc.target_type, sc.calories, sc.distance_meters, sc.time_seconds
                 FROM set_components sc
                 JOIN exercises e ON sc.exercise_id = e.id
-                WHERE sc.set_group_id = ?
+                WHERE sc.set_group_id = %s
             """, (g['id'],)).fetchall()
             group_list.append({
                 'id': g['id'],
@@ -2660,7 +2568,7 @@ def workout_history():
         JOIN set_groups sg ON sc.set_group_id = sg.id
         JOIN workout_sessions ws ON sg.workout_session_id = ws.id
         JOIN exercises e ON sc.exercise_id = e.id
-        WHERE ws.user_id = ?
+        WHERE ws.user_id = %s
         ORDER BY e.name
     """, (user_id,)).fetchall()
     filter_exercises = [row['name'] for row in logged_exercises_rows]
@@ -2688,11 +2596,11 @@ def workout_history():
 def delete_workout_session(id):
     conn = get_db()
     user_id = session["user_id"]
-    row = conn.execute("SELECT id FROM workout_sessions WHERE id = ? AND user_id = ?", (id, user_id)).fetchone()
+    row = conn.execute("SELECT id FROM workout_sessions WHERE id = %s AND user_id = %s", (id, user_id)).fetchone()
     if not row:
         conn.close()
         return jsonify({"success": False, "error": "Not found"}), 404
-    conn.execute("DELETE FROM workout_sessions WHERE id = ?", (id,))
+    conn.execute("DELETE FROM workout_sessions WHERE id = %s", (id,))
     conn.commit()
     conn.close()
     return jsonify({"success": True})
@@ -2706,7 +2614,7 @@ def edit_workout_session(id):
     is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
 
     existing = conn.execute(
-        "SELECT * FROM workout_sessions WHERE id = ? AND user_id = ?", (id, user_id)
+        "SELECT * FROM workout_sessions WHERE id = %s AND user_id = %s", (id, user_id)
     ).fetchone()
     if not existing:
         conn.close()
@@ -2741,8 +2649,8 @@ def edit_workout_session(id):
 
     conn.execute(
         """UPDATE workout_sessions 
-           SET title = ?, notes = ?, result = ?, date = ?, context = ?, time_cap_minutes = ?, emom_interval = ?, emom_duration = ? 
-           WHERE id = ? AND user_id = ?""",
+           SET title = %s, notes = %s, result = %s, date = %s, context = %s, time_cap_minutes = %s, emom_interval = %s, emom_duration = %s 
+           WHERE id = %s AND user_id = %s""",
         (name, notes, result, date_str, context, time_cap_minutes, emom_interval, emom_duration, id, user_id)
     )
 
@@ -2762,7 +2670,7 @@ def edit_workout_session(id):
         owner = conn.execute("""
             SELECT sc.id FROM set_components sc
             JOIN set_groups sg ON sc.set_group_id = sg.id
-            WHERE sc.id = ? AND sg.workout_session_id = ?
+            WHERE sc.id = %s AND sg.workout_session_id = %s
         """, (comp_id_int, id)).fetchone()
         if not owner:
             continue
@@ -2788,12 +2696,12 @@ def edit_workout_session(id):
         if ex_name:
             exercise_id, _ = resolve_exercise(conn, ex_name)
             conn.execute(
-                "UPDATE set_components SET exercise_id = ?, reps = ?, weight_kg = ? WHERE id = ?",
+                "UPDATE set_components SET exercise_id = %s, reps = %s, weight_kg = %s WHERE id = %s",
                 (exercise_id, reps_val, weight_val, comp_id_int)
             )
         else:
             conn.execute(
-                "UPDATE set_components SET reps = ?, weight_kg = ? WHERE id = ?",
+                "UPDATE set_components SET reps = %s, weight_kg = %s WHERE id = %s",
                 (reps_val, weight_val, comp_id_int)
             )
 
@@ -2808,7 +2716,7 @@ def edit_workout_session(id):
         except (ValueError, TypeError):
             continue
         owner_g = conn.execute(
-            "SELECT id FROM set_groups WHERE id = ? AND workout_session_id = ?", (gid, id)
+            "SELECT id FROM set_groups WHERE id = %s AND workout_session_id = %s", (gid, id)
         ).fetchone()
         if not owner_g:
             continue
@@ -2827,7 +2735,7 @@ def edit_workout_session(id):
             
         rest_val = (min_val * 60 + sec_val) or None
         conn.execute(
-            "UPDATE set_groups SET rest_seconds = ? WHERE id = ?",
+            "UPDATE set_groups SET rest_seconds = %s WHERE id = %s",
             (rest_val, gid)
         )
 
@@ -2837,7 +2745,7 @@ def edit_workout_session(id):
     updated_groups = []
     groups = conn.execute("""
         SELECT sg.id, sg.order_index, sg.rest_seconds
-        FROM set_groups sg WHERE sg.workout_session_id = ?
+        FROM set_groups sg WHERE sg.workout_session_id = %s
         ORDER BY sg.order_index
     """, (id,)).fetchall()
     for g in groups:
@@ -2845,7 +2753,7 @@ def edit_workout_session(id):
             SELECT sc.id, e.name AS exercise, sc.reps, sc.weight_kg
             FROM set_components sc
             JOIN exercises e ON sc.exercise_id = e.id
-            WHERE sc.set_group_id = ?
+            WHERE sc.set_group_id = %s
         """, (g['id'],)).fetchall()
         updated_groups.append({
             'id': g['id'],
@@ -2883,7 +2791,7 @@ def delete_lift(id):
     user_id = session["user_id"]
 
     cursor = conn.execute(
-        'DELETE FROM lift_sessions WHERE id = ? AND user_id = ?',
+        'DELETE FROM lift_sessions WHERE id = %s AND user_id = %s',
         (id, user_id)
     )
     conn.commit()
@@ -2903,7 +2811,7 @@ def delete_wod(id):
     
     # Verify ownership and delete
     cursor = conn.execute(
-        'DELETE FROM wods WHERE id = ? AND user_id = ?',
+        'DELETE FROM wods WHERE id = %s AND user_id = %s',
         (id, user_id)
     )
     conn.commit()
@@ -2931,7 +2839,7 @@ def edit_lift(id):
 
         try:
             existing = conn.execute(
-                'SELECT id FROM lift_sessions WHERE id = ? AND user_id = ?',
+                'SELECT id FROM lift_sessions WHERE id = %s AND user_id = %s',
                 (id, user_id)
             ).fetchone()
             if not existing:
@@ -2945,11 +2853,11 @@ def edit_lift(id):
                 return redirect(url_for('edit_lift', id=id))
             conn.execute("""
                 UPDATE lift_sessions
-                SET exercise_id = ?, notes = ?, date = ?
-                WHERE id = ? AND user_id = ?
+                SET exercise_id = %s, notes = %s, date = %s
+                WHERE id = %s AND user_id = %s
             """, (exercise_id, notes or None, date_str, id, user_id))
 
-            conn.execute('DELETE FROM lift_sets WHERE lift_session_id = ?', (id,))
+            conn.execute('DELETE FROM lift_sets WHERE lift_session_id = %s', (id,))
 
             cleaned_sets = []
             for index, set_entry in enumerate(raw_sets):
@@ -2967,7 +2875,7 @@ def edit_lift(id):
 
                 conn.execute("""
                     INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index, rpe, notes)
-                    VALUES (?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s)
                 """, (id, weight_val, reps_val, index, None, None))
                 cleaned_sets.append(True)
 
@@ -3007,8 +2915,8 @@ def edit_wod(id):
         if workout_text and result:
             conn.execute("""
                 UPDATE wods 
-                SET name = ?, workout_text = ?, result = ?, notes = ?, date = ?
-                WHERE id = ? AND user_id = ?
+                SET name = %s, workout_text = %s, result = %s, notes = %s, date = %s
+                WHERE id = %s AND user_id = %s
             """, (name or None, workout_text, result, notes or None, date_str, id, user_id))
             conn.commit()
             flash("WOD updated successfully", "success")
@@ -3023,7 +2931,7 @@ def edit_wod(id):
     
     # GET - fetch the WOD for editing
     wod = conn.execute(
-        'SELECT * FROM wods WHERE id = ? AND user_id = ?',
+        'SELECT * FROM wods WHERE id = %s AND user_id = %s',
         (id, user_id)
     ).fetchone()
     conn.close()
@@ -3056,7 +2964,7 @@ def lifts_history():
         '''SELECT DISTINCT e.name as exercise
            FROM lift_sessions es
            JOIN exercises e ON es.exercise_id = e.id
-           WHERE es.user_id = ? ORDER BY e.name''',
+           WHERE es.user_id = %s ORDER BY e.name''',
         (user_id,)
     ).fetchall()]
 
@@ -3083,16 +2991,16 @@ def wods_history():
     wod_type_filter = request.args.get('wod_type', '')
 
     # Build query with optional filters
-    query = 'SELECT * FROM wods WHERE user_id = ?'
+    query = 'SELECT * FROM wods WHERE user_id = %s'
     params = [user_id]
 
     if date_range in ('7', '30'):
         cutoff = (date.today() - timedelta(days=int(date_range))).isoformat()
-        query += ' AND date >= ?'
+        query += ' AND date >= %s'
         params.append(cutoff)
 
     if wod_type_filter:
-        query += ' AND wod_type = ?'
+        query += ' AND wod_type = %s'
         params.append(wod_type_filter)
 
     query += ' ORDER BY date DESC, id DESC'
@@ -3141,7 +3049,7 @@ def log_run():
             run_cursor = conn.execute(
                 """
                 INSERT INTO runs (user_id, distance_km, time_seconds, unit, run_type, date, notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
                 """,
                 (user_id, distance_km, time_seconds, unit, run_type, date_str, notes, created_at)
             )
@@ -3161,7 +3069,7 @@ def log_run():
             })
 
             previous_run = conn.execute(
-                "SELECT * FROM runs WHERE user_id = ? AND date < ? ORDER BY date DESC, created_at DESC LIMIT 1",
+                "SELECT * FROM runs WHERE user_id = %s AND date < %s ORDER BY date DESC, created_at DESC LIMIT 1",
                 (user_id, date_str)
             ).fetchone()
 
@@ -3186,7 +3094,7 @@ def log_run():
                     emoji = "🔥"
                     # Check all-time PB
                     fastest_ever = conn.execute(
-                        "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
+                        "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = %s AND id != %s",
                         (user_id, run_id)
                     ).fetchone()[0]
                     if fastest_ever is None or curr_pace < fastest_ever:
@@ -3201,7 +3109,7 @@ def log_run():
                     emoji = "✨"
             else:
                 fastest_ever = conn.execute(
-                    "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = ? AND id != ?",
+                    "SELECT MIN(time_seconds / distance_km) FROM runs WHERE user_id = %s AND id != %s",
                     (user_id, run_id)
                 ).fetchone()[0]
                 if fastest_ever is None or new_run['pace_seconds_per_km'] < fastest_ever:
@@ -3240,7 +3148,7 @@ def log_run():
 
     # GET
     all_rows = conn.execute(
-        "SELECT * FROM runs WHERE user_id = ? ORDER BY date DESC, created_at DESC",
+        "SELECT * FROM runs WHERE user_id = %s ORDER BY date DESC, created_at DESC",
         (user_id,)
     ).fetchall()
 
@@ -3270,12 +3178,12 @@ def runs_history():
     user_id = session["user_id"]
 
     date_range = request.args.get('range', '')
-    query = "SELECT * FROM runs WHERE user_id = ?"
+    query = "SELECT * FROM runs WHERE user_id = %s"
     params = [user_id]
 
     if date_range in ('7', '30'):
         cutoff = (date.today() - timedelta(days=int(date_range))).isoformat()
-        query += ' AND date >= ?'
+        query += ' AND date >= %s'
         params.append(cutoff)
 
     query += ' ORDER BY date DESC, created_at DESC'
@@ -3304,7 +3212,7 @@ def edit_run(run_id):
 
     try:
         existing = conn.execute(
-            'SELECT * FROM runs WHERE id = ? AND user_id = ?',
+            'SELECT * FROM runs WHERE id = %s AND user_id = %s',
             (run_id, user_id)
         ).fetchone()
         if not existing:
@@ -3331,8 +3239,8 @@ def edit_run(run_id):
         conn.execute(
             """
             UPDATE runs
-            SET distance_km = ?, time_seconds = ?, unit = ?, run_type = ?, date = ?, notes = ?
-            WHERE id = ? AND user_id = ?
+            SET distance_km = %s, time_seconds = %s, unit = %s, run_type = %s, date = %s, notes = %s
+            WHERE id = %s AND user_id = %s
             """,
             (distance_km, time_seconds, unit, run_type, date_str, notes, run_id, user_id)
         )
@@ -3392,10 +3300,10 @@ def delete_run(run_id):
     conn = get_db()
     user_id = session["user_id"]
     run = conn.execute(
-        "SELECT id FROM runs WHERE id = ? AND user_id = ?", (run_id, user_id)
+        "SELECT id FROM runs WHERE id = %s AND user_id = %s", (run_id, user_id)
     ).fetchone()
     if run:
-        conn.execute("DELETE FROM runs WHERE id = ?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE id = %s", (run_id,))
         conn.commit()
         conn.close()
         if request.headers.get("X-Requested-With") == "XMLHttpRequest":
@@ -3417,7 +3325,7 @@ def wins():
     seven_days_ago = today - timedelta(days=7)
 
     wins_rows = conn.execute(
-        "SELECT id, category, entry, date FROM wins WHERE user_id = ? ORDER BY date DESC, id DESC",
+        "SELECT id, category, entry, date FROM wins WHERE user_id = %s ORDER BY date DESC, id DESC",
         (user_id,)
     ).fetchall()
     
@@ -3482,7 +3390,7 @@ def create_win():
         
     conn = get_db()
     conn.execute(
-        "INSERT INTO wins (user_id, category, entry, date) VALUES (?, ?, ?, ?)",
+        "INSERT INTO wins (user_id, category, entry, date) VALUES (%s, %s, %s, %s)",
         (user_id, category, entry, date_str)
     )
     conn.commit()
@@ -3495,7 +3403,7 @@ def create_win():
 def delete_win(win_id):
     user_id = session["user_id"]
     conn = get_db()
-    conn.execute("DELETE FROM wins WHERE id = ? AND user_id = ?", (win_id, user_id))
+    conn.execute("DELETE FROM wins WHERE id = %s AND user_id = %s", (win_id, user_id))
     conn.commit()
     conn.close()
     return redirect(url_for('wins'))
