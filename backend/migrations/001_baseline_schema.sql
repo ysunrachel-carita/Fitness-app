@@ -27,10 +27,10 @@ CREATE TABLE IF NOT EXISTS public.workout_sessions (
     title text,
     notes text,
     context text,
-    type text,
     time_cap_minutes integer,
     emom_interval integer,
     emom_duration integer,
+    result text,
     created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP
 );
 

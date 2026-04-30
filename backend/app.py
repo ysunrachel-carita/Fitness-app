@@ -2489,7 +2489,7 @@ def workout_history():
     params = [user_id]
     if date_range:
         params.append(date_range)
-        date_clause = "AND CAST(julianday('now') - julianday(ws.date) AS INTEGER) <= %s"
+        date_clause = "AND ws.date >= (CURRENT_DATE - CAST(%s AS INTEGER) * INTERVAL '1 day')"
 
     exercise_clause = ""
     if exercise_filter:
