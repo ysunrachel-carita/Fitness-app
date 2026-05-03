@@ -183,7 +183,7 @@ def build_pr_gallery(sessions):
                 'reps': reps_value, 'sets': 1,
                 'session_set_count': session.get('set_count', len(session.get('sets', []))),
                 'notes': set_entry.get('notes') or session.get('notes'),
-                'lift_session_id': session['id'], 'set_order_index': set_entry.get('order_index', 0),
+                'lift_session_id': session['id'], 'set_order_index': (set_entry.get('order_index') or 0),
                 'value': float(rm_value),
             }
             current = best_entries.get(exercise)
