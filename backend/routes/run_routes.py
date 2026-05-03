@@ -62,4 +62,19 @@ def log_run():
 def run_history():
     user_id = session["user_id"]
     runs = get_user_runs(user_id)
-    return render_template('runs_history.html', runs=runs, page='history')
+    
+    from collections import OrderedDict
+    grouped_runs = OrderedDict()
+    for r in runs:
+        date_str = r['date']
+        # If it's a datetime object or string containing time, just get the date part
+        if isinstance(date_str, str) and ' ' in date_str:
+            date_str = date_str.split(' ')[0]
+        elif hasattr(date_str, 'strftime'):
+            date_str = date_str.strftime('%Y-%m-%d')
+            
+        if date_str not in grouped_runs:
+            grouped_runs[date_str] = []
+        grouped_runs[date_str].append(r)
+        
+    return render_template('runs_history.html', grouped=grouped_runs, current_range='', page='history')

@@ -217,14 +217,25 @@ def init_db():
     """)
 
     # Auto-migration: Ensure order_index exists on set_components (remote database might be missing it)
-    col_check = conn.execute("""
+    col_check_components = conn.execute("""
         SELECT column_name 
         FROM information_schema.columns 
         WHERE table_name='set_components' AND column_name='order_index'
     """).fetchone()
     
-    if not col_check:
+    if not col_check_components:
         conn.execute("ALTER TABLE set_components ADD COLUMN order_index INTEGER")
         print("✅ Migrated: Added order_index to set_components")
+
+    # Auto-migration: Ensure order_index exists on lift_sets
+    col_check_lifts = conn.execute("""
+        SELECT column_name 
+        FROM information_schema.columns 
+        WHERE table_name='lift_sets' AND column_name='order_index'
+    """).fetchone()
+    
+    if not col_check_lifts:
+        conn.execute("ALTER TABLE lift_sets ADD COLUMN order_index INTEGER")
+        print("✅ Migrated: Added order_index to lift_sets")
 
     conn.close()
