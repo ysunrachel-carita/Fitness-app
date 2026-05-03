@@ -159,3 +159,20 @@ def delete_win(win_id):
     conn.close()
     flash("Win deleted.", "success")
     return redirect(url_for("main.wins"))
+
+@main_bp.route("/wins/<int:win_id>/edit", methods=["POST"])
+@login_required
+def edit_win(win_id):
+    content = request.form.get("entry")
+    category = request.form.get("category", "PR")
+    win_date = request.form.get("date", date.today().isoformat())
+    
+    if content:
+        conn = get_db()
+        conn.execute("UPDATE wins SET content = %s, category = %s, date = %s WHERE id = %s AND user_id = %s",
+                     (content, category, win_date, win_id, session["user_id"]))
+        conn.commit()
+        conn.close()
+        flash("Win updated!", "success")
+        
+    return redirect(url_for("main.wins"))

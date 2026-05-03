@@ -229,27 +229,51 @@
     color: var(--text-muted);
 }
 
-.delete-win-btn {
+/* Swipe actions container */
+.win-card-container {
+    position: relative;
+    margin-bottom: 12px;
+    overflow: hidden;
+    border-radius: var(--radius-lg);
+}
+
+.win-card-actions {
     position: absolute;
-    top: 12px;
-    right: 12px;
-    background: var(--bg-tertiary);
-    border: 1px solid var(--border-color);
-    border-radius: 50%;
-    width: 28px;
-    height: 28px;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    justify-content: space-between;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    z-index: 1;
+}
+
+.win-action {
     display: flex;
     align-items: center;
     justify-content: center;
-    color: var(--text-muted);
-    cursor: pointer;
-    opacity: 0.6;
-    transition: all 0.2s ease;
+    width: 100px;
+    font-weight: 600;
+    font-size: 14px;
+    color: white;
 }
 
-.delete-win-btn:hover {
-    opacity: 1;
-    background: #fee2e2;
-    color: #ef4444;
-    border-color: #fca5a5;
+.win-action.delete {
+    background: #ef4444;
+    justify-content: flex-start;
+    padding-left: 20px;
+}
+
+.win-action.edit {
+    background: #3b82f6;
+    justify-content: flex-end;
+    padding-right: 20px;
+}
+
+.swipeable {
+    position: relative;
+    z-index: 2;
+    margin-bottom: 0; /* Reset margin because container handles it */
 }

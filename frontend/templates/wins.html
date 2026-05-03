@@ -20,6 +20,12 @@
         <div class="add-placeholder">What went well today?</div>
     </div>
 
+    {% if groups %}
+    <div class="swipe-helper-text" style="text-align: center; color: var(--text-muted); font-size: 12px; margin-bottom: 20px;">
+        <span style="opacity: 0.6;">← Swipe left to edit • Swipe right to delete →</span>
+    </div>
+    {% endif %}
+
     {% if not groups %}
     <div class="empty-state">
         <p>No wins logged yet. Keep training and celebrate the small victories!</p>
@@ -30,18 +36,19 @@
         <div class="win-group">
             <div class="win-group-label">{{ group.label }}</div>
             {% for win in group.entries %}
-            <div class="win-card {% if loop.first and group.label == 'This week' %}win-card--latest{% endif %}">
-                <form action="/wins/{{ win.id }}/delete" method="POST" class="delete-form">
-                    <button type="submit" class="delete-win-btn" onclick="return confirm('Delete this win?')">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                    </button>
-                </form>
-                <div class="win-card-header">
-                    <span class="win-category cat-{{ win.category|lower }}">{{ win.category }}</span>
-                    <span class="win-date">{{ win.date|format_short_date }}</span>
+            <div class="win-card-container">
+                <div class="win-card-actions">
+                    <div class="win-action delete" data-action="delete" data-id="{{ win.id }}">Delete</div>
+                    <div class="win-action edit" data-action="edit" data-id="{{ win.id }}" data-content="{{ win.content|escape }}" data-category="{{ win.category }}" data-date="{{ win.date }}">Edit</div>
                 </div>
-                <div class="win-text">
-                    {{ win.content }}
+                <div class="win-card swipeable {% if loop.first and group.label == 'This week' %}win-card--latest{% endif %}">
+                    <div class="win-card-header">
+                        <span class="win-category cat-{{ win.category|lower }}">{{ win.category }}</span>
+                        <span class="win-date">{{ win.date|format_short_date }}</span>
+                    </div>
+                    <div class="win-text">
+                        {{ win.content }}
+                    </div>
                 </div>
             </div>
             {% endfor %}
@@ -103,6 +110,70 @@ document.addEventListener('DOMContentLoaded', function() {
             categoryPills.forEach(p => p.classList.remove('selected'));
             pill.classList.add('selected');
             categoryInput.value = pill.dataset.value;
+        });
+    });
+
+    // Swipe functionality
+    const swipeables = document.querySelectorAll('.swipeable');
+    swipeables.forEach(el => {
+        let touchstartX = 0;
+        let touchendX = 0;
+        
+        el.addEventListener('touchstart', e => {
+            touchstartX = e.changedTouches[0].screenX;
+            el.style.transition = 'none';
+        });
+        
+        el.addEventListener('touchmove', e => {
+            let currentX = e.changedTouches[0].screenX;
+            let diff = currentX - touchstartX;
+            // Limit drag distance
+            if (diff > 100) diff = 100;
+            if (diff < -100) diff = -100;
+            el.style.transform = `translateX(${diff}px)`;
+        });
+        
+        el.addEventListener('touchend', e => {
+            touchendX = e.changedTouches[0].screenX;
+            el.style.transition = 'transform 0.3s ease';
+            let diff = touchendX - touchstartX;
+            
+            if (diff > 60) {
+                // Swiped right (Delete)
+                el.style.transform = `translateX(100px)`;
+                setTimeout(() => {
+                    if(confirm("Delete this win?")) {
+                        const id = el.parentElement.querySelector('.delete').dataset.id;
+                        fetch(`/wins/${id}/delete`, {method: 'POST'})
+                            .then(() => window.location.reload());
+                    } else {
+                        el.style.transform = `translateX(0px)`;
+                    }
+                }, 300);
+            } else if (diff < -60) {
+                // Swiped left (Edit)
+                el.style.transform = `translateX(-100px)`;
+                setTimeout(() => {
+                    const editBtn = el.parentElement.querySelector('.edit');
+                    const form = document.getElementById('createWinForm');
+                    
+                    form.action = `/wins/${editBtn.dataset.id}/edit`;
+                    document.getElementById('winEntryTextarea').value = editBtn.dataset.content;
+                    document.querySelector('.modal-title').textContent = "Edit Win";
+                    
+                    // Reset pills
+                    categoryPills.forEach(p => p.classList.remove('selected'));
+                    const targetPill = Array.from(categoryPills).find(p => p.dataset.value === editBtn.dataset.category) || categoryPills[0];
+                    targetPill.classList.add('selected');
+                    categoryInput.value = targetPill.dataset.value;
+                    
+                    modal.classList.add('show');
+                    el.style.transform = `translateX(0px)`;
+                }, 300);
+            } else {
+                // Revert
+                el.style.transform = `translateX(0px)`;
+            }
         });
     });
 });
