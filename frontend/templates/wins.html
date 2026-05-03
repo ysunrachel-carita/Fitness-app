@@ -22,7 +22,7 @@
 
     {% if groups %}
     <div class="swipe-helper-text" style="text-align: center; color: var(--text-muted); font-size: 12px; margin-bottom: 20px;">
-        <span style="opacity: 0.6;">← Swipe left to edit • Swipe right to delete →</span>
+        <span style="opacity: 0.6;">← Swipe left to delete • Swipe right to edit →</span>
     </div>
     {% endif %}
 
@@ -38,8 +38,8 @@
             {% for win in group.entries %}
             <div class="win-card-container">
                 <div class="win-card-actions">
-                    <div class="win-action delete" data-action="delete" data-id="{{ win.id }}">Delete</div>
                     <div class="win-action edit" data-action="edit" data-id="{{ win.id }}" data-content="{{ win.content|escape }}" data-category="{{ win.category }}" data-date="{{ win.date }}">Edit</div>
+                    <div class="win-action delete" data-action="delete" data-id="{{ win.id }}">Delete</div>
                 </div>
                 <div class="win-card swipeable {% if loop.first and group.label == 'This week' %}win-card--latest{% endif %}">
                     <div class="win-card-header">
@@ -113,12 +113,49 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 
+    // Action listeners
+    document.querySelectorAll('.win-action.delete').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            if(confirm("Delete this win?")) {
+                fetch(`/wins/${btn.dataset.id}/delete`, {method: 'POST'})
+                    .then(() => window.location.reload());
+            } else {
+                btn.closest('.win-card-container').querySelector('.swipeable').style.transform = `translateX(0px)`;
+            }
+        });
+    });
+
+    document.querySelectorAll('.win-action.edit').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const form = document.getElementById('createWinForm');
+            form.action = `/wins/${btn.dataset.id}/edit`;
+            document.getElementById('winEntryTextarea').value = btn.dataset.content;
+            document.querySelector('.modal-title').textContent = "Edit Win";
+            
+            // Reset pills
+            categoryPills.forEach(p => p.classList.remove('selected'));
+            const targetPill = Array.from(categoryPills).find(p => p.dataset.value === btn.dataset.category) || categoryPills[0];
+            targetPill.classList.add('selected');
+            categoryInput.value = targetPill.dataset.value;
+            
+            modal.classList.add('show');
+            btn.closest('.win-card-container').querySelector('.swipeable').style.transform = `translateX(0px)`;
+        });
+    });
+
     // Swipe functionality
     const swipeables = document.querySelectorAll('.swipeable');
     swipeables.forEach(el => {
         let touchstartX = 0;
         let touchendX = 0;
         
+        // Tap to close if open
+        el.addEventListener('click', e => {
+            if (el.style.transform && el.style.transform !== 'translateX(0px)') {
+                el.style.transform = 'translateX(0px)';
+            }
+        });
+
         el.addEventListener('touchstart', e => {
             touchstartX = e.changedTouches[0].screenX;
             el.style.transition = 'none';
@@ -139,37 +176,11 @@ document.addEventListener('DOMContentLoaded', function() {
             let diff = touchendX - touchstartX;
             
             if (diff > 60) {
-                // Swiped right (Delete)
+                // Swiped right (Reveal Edit on left)
                 el.style.transform = `translateX(100px)`;
-                setTimeout(() => {
-                    if(confirm("Delete this win?")) {
-                        const id = el.parentElement.querySelector('.delete').dataset.id;
-                        fetch(`/wins/${id}/delete`, {method: 'POST'})
-                            .then(() => window.location.reload());
-                    } else {
-                        el.style.transform = `translateX(0px)`;
-                    }
-                }, 300);
             } else if (diff < -60) {
-                // Swiped left (Edit)
+                // Swiped left (Reveal Delete on right)
                 el.style.transform = `translateX(-100px)`;
-                setTimeout(() => {
-                    const editBtn = el.parentElement.querySelector('.edit');
-                    const form = document.getElementById('createWinForm');
-                    
-                    form.action = `/wins/${editBtn.dataset.id}/edit`;
-                    document.getElementById('winEntryTextarea').value = editBtn.dataset.content;
-                    document.querySelector('.modal-title').textContent = "Edit Win";
-                    
-                    // Reset pills
-                    categoryPills.forEach(p => p.classList.remove('selected'));
-                    const targetPill = Array.from(categoryPills).find(p => p.dataset.value === editBtn.dataset.category) || categoryPills[0];
-                    targetPill.classList.add('selected');
-                    categoryInput.value = targetPill.dataset.value;
-                    
-                    modal.classList.add('show');
-                    el.style.transform = `translateX(0px)`;
-                }, 300);
             } else {
                 // Revert
                 el.style.transform = `translateX(0px)`;

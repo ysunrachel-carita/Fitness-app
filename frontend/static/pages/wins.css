@@ -260,14 +260,14 @@
     color: white;
 }
 
-.win-action.delete {
-    background: #ef4444;
+.win-action.edit {
+    background: #3b82f6;
     justify-content: flex-start;
     padding-left: 20px;
 }
 
-.win-action.edit {
-    background: #3b82f6;
+.win-action.delete {
+    background: #ef4444;
     justify-content: flex-end;
     padding-right: 20px;
 }
