@@ -19,6 +19,20 @@ def create_app():
     template_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'templates'))
     static_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'static'))
     
+    import sys, os
+    print("\n" + "="*40, file=sys.stderr)
+    print("CRITICAL SERVER PATH DIAGNOSTIC", file=sys.stderr)
+    print(f"base_dir: {base_dir}", file=sys.stderr)
+    print(f"template_dir expected: {template_dir}", file=sys.stderr)
+    print(f"Does template_dir exist?: {os.path.exists(template_dir)}", file=sys.stderr)
+    parent_dir = os.path.abspath(os.path.join(base_dir, '..'))
+    print(f"Contents of {parent_dir}:", file=sys.stderr)
+    try:
+        print(os.listdir(parent_dir), file=sys.stderr)
+    except Exception as e:
+        print(f"Error reading parent: {e}", file=sys.stderr)
+    print("="*40 + "\n", file=sys.stderr)
+    
     app = Flask(__name__, 
                 template_folder=template_dir,
                 static_folder=static_dir)
