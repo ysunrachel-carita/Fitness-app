@@ -233,15 +233,23 @@
     position: absolute;
     top: 12px;
     right: 12px;
-    background: transparent;
-    border: none;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     color: var(--text-muted);
     cursor: pointer;
-    padding: 4px;
-    opacity: 0;
-    transition: opacity 0.2s;
+    opacity: 0.6;
+    transition: all 0.2s ease;
 }
 
-.win-card:hover .delete-win-btn {
+.delete-win-btn:hover {
     opacity: 1;
+    background: #fee2e2;
+    color: #ef4444;
+    border-color: #fca5a5;
 }
