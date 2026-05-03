@@ -216,26 +216,56 @@ def init_db():
         )
     """)
 
-    # Auto-migration: Ensure order_index exists on set_components (remote database might be missing it)
-    col_check_components = conn.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='set_components' AND column_name='order_index'
-    """).fetchone()
-    
-    if not col_check_components:
-        conn.execute("ALTER TABLE set_components ADD COLUMN order_index INTEGER")
-        print("✅ Migrated: Added order_index to set_components")
+    # Auto-migration: Ensure all newly added columns exist on the remote database
+    # Dictionary of table_name -> { column_name: column_type }
+    expected_columns = {
+        'set_components': {
+            'order_index': 'INTEGER',
+            'sets': 'INTEGER',
+            'calories': 'INTEGER',
+            'distance_km': 'FLOAT',
+            'distance_meters': 'FLOAT',
+            'time_seconds': 'INTEGER',
+            'shuttle_distance': 'FLOAT',
+            'target_type': 'TEXT',
+            'height_inch': 'FLOAT'
+        },
+        'lift_sets': {
+            'order_index': 'INTEGER'
+        },
+        'wins': {
+            'content': 'TEXT',
+            'category': 'TEXT',
+            'date': 'DATE'
+        }
+    }
 
-    # Auto-migration: Ensure order_index exists on lift_sets
-    col_check_lifts = conn.execute("""
-        SELECT column_name 
-        FROM information_schema.columns 
-        WHERE table_name='lift_sets' AND column_name='order_index'
-    """).fetchone()
-    
-    if not col_check_lifts:
-        conn.execute("ALTER TABLE lift_sets ADD COLUMN order_index INTEGER")
-        print("✅ Migrated: Added order_index to lift_sets")
+    # Auto-migration: Handle known column renames first to preserve data
+    renames = {
+        'wins': {'entry': 'content'}
+    }
+    for table, col_renames in renames.items():
+        existing = conn.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}'").fetchall()
+        existing_col_names = [row[0] for row in existing]
+        for old_name, new_name in col_renames.items():
+            if old_name in existing_col_names and new_name not in existing_col_names:
+                try:
+                    conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old_name} TO {new_name}")
+                    print(f"✅ Migrated: Renamed {old_name} to {new_name} in {table}")
+                except Exception as e:
+                    print(f"⚠️ Could not rename {old_name} to {new_name} in {table}: {e}")
+
+    for table, cols in expected_columns.items():
+        # Get existing columns for this table
+        existing = conn.execute(f"SELECT column_name FROM information_schema.columns WHERE table_name='{table}'").fetchall()
+        existing_col_names = [row[0] for row in existing]
+        
+        for col_name, col_type in cols.items():
+            if col_name not in existing_col_names:
+                try:
+                    conn.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+                    print(f"✅ Migrated: Added {col_name} to {table}")
+                except Exception as e:
+                    print(f"⚠️ Could not add {col_name} to {table}: {e}")
 
     conn.close()
