@@ -15,9 +15,13 @@ from routes.run_routes import run_bp
 from routes.progress_routes import progress_bp
 
 def create_app():
+    base_dir = os.path.abspath(os.path.dirname(__file__))
+    template_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'templates'))
+    static_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'static'))
+    
     app = Flask(__name__, 
-                template_folder='../frontend/templates',
-                static_folder='../frontend/static')
+                template_folder=template_dir,
+                static_folder=static_dir)
     
     app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-key-123")
     
