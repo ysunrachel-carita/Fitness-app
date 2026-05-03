@@ -1,0 +1,634 @@
+{% extends "base.html" %}
+
+{% block title %}Workout History{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/history.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="page-content">
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="section-header">
+            <h1 class="page-title">Workout History</h1>
+            <a href="{{ url_for('workout.log_workout') }}" class="btn btn--secondary">Back to Log</a>
+        </div>
+
+        <div class="filter-bar">
+            <select id="filter-range">
+                <option value="" {% if not current_range %}selected{% endif %}>All Time</option>
+                <option value="7"  {% if current_range == '7'  %}selected{% endif %}>Last 7 Days</option>
+                <option value="30" {% if current_range == '30' %}selected{% endif %}>Last 30 Days</option>
+                <option value="90" {% if current_range == '90' %}selected{% endif %}>Last 90 Days</option>
+            </select>
+
+            <select id="filter-exercise">
+                <option value="" {% if not current_exercise %}selected{% endif %}>All Exercises</option>
+                {% for ex in filter_exercises %}
+                <option value="{{ ex }}" {% if current_exercise == ex %}selected{% endif %}>{{ ex }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <!-- Exercise data for autocomplete -->
+        <div id="exercise-data" data-exercises='{{ exercises | tojson }}' style="display:none;"></div>
+
+        {% if grouped %}
+            {% for day, day_sessions in grouped.items() %}
+            <div class="history-date-group" data-date="{{ day }}">
+                <div class="history-date">{{ day | format_short_date }}</div>
+
+                {% for session in day_sessions %}
+                <div class="history-row" data-id="{{ session.id }}">
+
+                    <!-- READ VIEW -->
+                    <div class="history-row-content">
+                        <h4 data-role="session-name">{{ session.name }}</h4>
+
+                        {% if session.context %}
+                        <div class="context-badges-container" style="margin-bottom: 6px;">
+                            <span class="wod-type-badge wod-type-badge--{{ session.context.lower().replace(' ', '').replace('-', '') }}">{{ session.context }}</span>
+                            {% if session.context in ['AMRAP', 'For Time'] and session.time_cap_minutes %}
+                                <span class="wod-type-detail">{{ session.time_cap_minutes }} min{% if session.context == 'For Time' %} cap{% endif %}</span>
+                            {% elif session.context == 'EMOM' and session.emom_interval and session.emom_duration %}
+                                <span class="wod-type-detail">every {{ session.emom_interval }} min for {{ session.emom_duration }} min</span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <div class="card-description" style="color: var(--text-muted); font-size: 13px; margin-bottom: 6px;">
+                            {{ session.group_count }} group{{ 's' if session.group_count != 1 }} &middot;
+                            {{ session.component_count }} exercise entr{{ 'ies' if session.component_count != 1 else 'y' }}
+                        </div>
+
+                        {% if session.groups %}
+                        <div class="card-description" data-role="session-exercises">
+                            {% for group in session.groups %}
+                                {% if group.components %}
+                                <div style="margin-bottom: 4px;">
+                                    <span style="font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent-primary);">Group {{ loop.index }}</span>
+                                    &mdash;
+                                    {% for comp in group.components %}
+                                        {{ comp.exercise.title() }}
+                                        {% if comp.target_type == 'reps' %}
+                                            {% if comp.weight_kg %} @ {{ comp.weight_kg }}kg{% endif %}
+                                            {% if comp.reps %} {{ comp.reps }} reps{% endif %}
+                                        {% elif comp.target_type == 'calories' %}
+                                            {{ comp.calories }} cal
+                                        {% elif comp.target_type == 'distance' %}
+                                            {{ comp.distance_meters }}m
+                                        {% elif comp.target_type == 'time' %}
+                                            {% set tm = comp.time_seconds // 60 %}{% set ts = comp.time_seconds % 60 %}
+                                            {{ tm }}:{{ "%02d"|format(ts) }}
+                                        {% elif comp.target_type == 'shuttle' %}
+                                            {{ comp.reps }} × {{ comp.distance_meters }}m
+                                        {% else %}
+                                            {% if comp.weight_kg %} @ {{ comp.weight_kg }}kg{% endif %}
+                                            {% if comp.reps %} {{ comp.reps }} reps{% endif %}
+                                        {% endif %}
+                                        {% if not loop.last %} / {% endif %}
+                                    {% endfor %}
+                        {% if group.rest_seconds %}
+                                    {% set rm = group.rest_seconds // 60 %}{% set rs = group.rest_seconds % 60 %}
+                                    <span style="font-size: 11px; color: var(--text-muted);"> &bull; {% if rm %}{{ rm }}m {% endif %}{% if rs %}{{ rs }}s {% endif %}rest</span>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+
+                        {% if session.notes %}
+                        <div class="card-description" data-role="session-notes" style="margin-top: 6px;">
+                            <strong>Notes:</strong> {{ session.notes.replace('\n', '<br>')|safe }}
+                        </div>
+                        {% endif %}
+
+                        {% if session.result %}
+                        <div class="card-description" data-role="session-result" style="margin-top: 4px; color: var(--accent-primary); font-weight: 600;">
+                            <strong>Result:</strong> {{ session.result }}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn btn--primary btn--sm" data-action="edit" data-session-id="{{ session.id }}">Edit</button>
+                        <button type="button" class="btn btn--danger btn--sm"  data-action="delete" data-id="{{ session.id }}">Delete</button>
+                    </div>
+
+                    <!-- INLINE EDIT FORM -->
+                    <div id="edit-form-{{ session.id }}" style="display:none; margin-top:16px;">
+                        <form action="/workout_sessions/{{ session.id }}/edit" method="POST">
+
+                            <div class="form-group">
+                                <label class="form-label">Workout Name</label>
+                                <input class="form-input" type="text" name="name"
+                                       value="{{ session.name if session.name != 'Untitled Workout' else '' }}"
+                                       placeholder="e.g. Bear Complex, 5x5 Squats">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Date</label>
+                                <input class="form-input" type="date" name="date" value="{{ session.date }}" required>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Workout Context <span style="font-weight:400; opacity:0.5;">(optional)</span></label>
+                                <div class="context-pills">
+                                    <span class="context-pill {% if session.context == 'AMRAP' %}active{% endif %}" data-context="AMRAP">AMRAP</span>
+                                    <span class="context-pill {% if session.context == 'EMOM' %}active{% endif %}" data-context="EMOM">EMOM</span>
+                                    <span class="context-pill {% if session.context == 'For Time' %}active{% endif %}" data-context="For Time">For Time</span>
+                                    <span class="context-pill {% if session.context == 'For Load' %}active{% endif %}" data-context="For Load">For Load</span>
+                                    <span class="context-pill {% if session.context == 'Other' %}active{% endif %}" data-context="Other">Other</span>
+                                </div>
+                                <input type="hidden" name="context" class="workout_context" value="{{ session.context or '' }}">
+
+                                <!-- AMRAP / For Time -->
+                                <div class="context-time-fields ctx-time-cap {% if session.context in ['AMRAP', 'For Time'] %}visible{% endif %}">
+                                    <div class="form-group">
+                                        <label class="form-label">Time cap (minutes)</label>
+                                        <input class="form-input" type="number" name="time_cap_minutes" min="1" value="{{ session.time_cap_minutes or '' }}" placeholder="e.g. 12">
+                                    </div>
+                                </div>
+
+                                <!-- EMOM -->
+                                <div class="context-time-fields ctx-emom {% if session.context == 'EMOM' %}visible{% endif %}">
+                                    <div class="form-group">
+                                        <label class="form-label">Every ___ minutes</label>
+                                        <input class="form-input" type="number" name="emom_interval" min="1" value="{{ session.emom_interval or '' }}" placeholder="e.g. 1">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">For ___ minutes</label>
+                                        <input class="form-input" type="number" name="emom_duration" min="1" value="{{ session.emom_duration or '' }}" placeholder="e.g. 10">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Group / component fields -->
+                            {% for group in session.groups %}
+                            {% if group.components %}
+                            <div class="form-group">
+                                <label class="form-label">Group {{ loop.index }}</label>
+                                {% for comp in group.components %}
+                                <div style="display: grid; grid-template-columns: 1fr 100px 80px; gap: 8px; margin-bottom: 8px; align-items: center;">
+                                    <input type="hidden" name="comp_id[]" value="{{ comp.id }}">
+                                    <div class="autocomplete-container">
+                                        <input class="form-input comp-exercise-input" type="text" name="comp_exercise[]" value="{{ comp.exercise }}" placeholder="Exercise" autocomplete="off">
+                                        <div class="suggestions-dropdown" style="display:none;"></div>
+                                    </div>
+                                    <input class="form-input" type="number" name="comp_weight[]" value="{{ comp.weight_kg or '' }}" placeholder="kg" step="0.5" min="0">
+                                    <input class="form-input" type="number" name="comp_reps[]"   value="{{ comp.reps or '' }}" placeholder="Reps" min="0">
+                                </div>
+                                {% endfor %}
+                                <div style="display: flex; align-items: center; gap: 8px; margin-top: 4px;">
+                                    <label style="font-size: 12px; color: var(--text-muted); white-space: nowrap;">Rest after</label>
+                                    <input class="form-input" type="number" name="group_rest_min[]" value="{{ (group.rest_seconds // 60) if group.rest_seconds else '' }}" placeholder="min" min="0" step="1"
+                                        style="width: 60px; font-size: 12px; padding: 4px 8px;">
+                                    <span style="font-size: 12px; color: var(--text-muted);">m</span>
+                                    <input class="form-input" type="number" name="group_rest_seconds[]" value="{{ (group.rest_seconds % 60) if group.rest_seconds else '' }}" placeholder="sec" min="0" step="5"
+                                        style="width: 60px; font-size: 12px; padding: 4px 8px;">
+                                    <span style="font-size: 12px; color: var(--text-muted);">s</span>
+                                    <input type="hidden" name="group_id[]" value="{{ group.id }}">
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% endfor %}
+
+                            <div class="form-group">
+                                <label class="form-label">Notes (Optional)</label>
+                                <textarea class="form-textarea" name="notes" rows="2">{{ session.notes or '' }}</textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Result (Optional)</label>
+                                <input class="form-input" type="text" name="result" value="{{ session.result or '' }}" placeholder="e.g. 12:45, 5 rounds">
+                            </div>
+
+                            <div class="form-actions">
+                                <button type="submit" class="btn btn--primary">Save</button>
+                                <button type="button" class="btn btn--secondary" data-action="cancel" data-session-id="{{ session.id }}">Cancel</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+                {% endfor %}
+
+                <div class="history-date-separator"></div>
+            </div>
+            {% endfor %}
+
+        {% else %}
+        <div class="card">
+            <p>No workouts recorded yet. <a href="{{ url_for('workout.log_workout') }}">Log your first workout</a>.</p>
+        </div>
+        {% endif %}
+
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var pageContent = document.querySelector('.page-content');
+
+    // ---- Autocomplete setup ----
+    var exercises = [];
+    try {
+        var exData = document.getElementById('exercise-data');
+        exercises = JSON.parse(exData.dataset.exercises) || [];
+    } catch(e) {}
+
+    function normalize(t) {
+        return t.toLowerCase().replace(/[-\s]/g, '').replace(/s$/, '');
+    }
+
+    function attachAutocomplete(input, dropdown) {
+        input.addEventListener('input', function () {
+            var val = this.value.trim();
+            if (val.length < 2) { dropdown.style.display = 'none'; return; }
+            var normQ = normalize(val);
+            var scored = exercises.map(function (ex) {
+                var n = normalize(ex);
+                var score = n === normQ ? 0 : n.startsWith(normQ) ? 1 : n.includes(normQ) ? 2 : 4;
+                return { ex: ex, score: score };
+            }).filter(function (s) { return s.score < 4; })
+              .sort(function (a, b) { return a.score - b.score; })
+              .slice(0, 6);
+
+            if (scored.length) {
+                dropdown.innerHTML = scored.map(function (s) {
+                    return '<div class="suggestion-item" data-exercise="' + escapeHtml(s.ex) + '">' + escapeHtml(s.ex) + '</div>';
+                }).join('');
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        dropdown.addEventListener('click', function (e) {
+            if (e.target.classList.contains('suggestion-item')) {
+                input.value = e.target.dataset.exercise;
+                dropdown.style.display = 'none';
+                var row = input.closest('[style*="grid"]');
+                if (row) {
+                    var repsInput = row.querySelector('input[name="comp_reps[]"]');
+                    if (repsInput) repsInput.focus();
+                }
+            }
+        });
+
+        document.addEventListener('click', function (e) {
+            if (!input.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+    }
+
+    function attachAutocompleteToForm(form) {
+        form.querySelectorAll('.autocomplete-container').forEach(function (container) {
+            var input    = container.querySelector('.comp-exercise-input');
+            var dropdown = container.querySelector('.suggestions-dropdown');
+            if (input && dropdown) attachAutocomplete(input, dropdown);
+        });
+    }
+
+    function attachContextPillsToForm(form) {
+        var contextInput = form.querySelector('.workout_context');
+        var ctxTimeCap = form.querySelector('.ctx-time-cap');
+        var ctxEmom = form.querySelector('.ctx-emom');
+
+        if (!contextInput) return;
+
+        function applyContext(ctx) {
+            ctxTimeCap.classList.remove('visible');
+            ctxEmom.classList.remove('visible');
+            if (ctx === 'AMRAP' || ctx === 'For Time') ctxTimeCap.classList.add('visible');
+            if (ctx === 'EMOM') ctxEmom.classList.add('visible');
+        }
+
+        form.querySelectorAll('.context-pill').forEach(function(pill) {
+            pill.addEventListener('click', function () {
+                var already = this.classList.contains('active');
+                form.querySelectorAll('.context-pill').forEach(p => p.classList.remove('active'));
+                if (already) {
+                    contextInput.value = '';
+                    applyContext('');
+                } else {
+                    this.classList.add('active');
+                    contextInput.value = this.dataset.context;
+                    applyContext(this.dataset.context);
+                }
+            });
+        });
+    }
+
+    // Attach to all edit forms on load
+    document.querySelectorAll('div[id^="edit-form-"]').forEach(function (div) {
+        var form = div.querySelector('form');
+        if (form) {
+            attachAutocompleteToForm(form);
+            attachContextPillsToForm(form);
+        }
+    });
+
+    function escapeHtml(v) {
+        return String(v || '')
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function formatRest(seconds) {
+        if (!seconds) return '';
+        var m = Math.floor(seconds / 60);
+        var s = seconds % 60;
+        var parts = [];
+        if (m) parts.push(m + 'm');
+        if (s) parts.push(s + 's');
+        return parts.join(' ') + ' rest';
+    }
+
+    function buildExercisesHtml(groups) {
+        if (!groups || !groups.length) return '';
+        var html = '';
+        groups.forEach(function (g, gi) {
+            if (!g.components || !g.components.length) return;
+            html += '<div style="margin-bottom:4px;">';
+            html += '<span style="font-size:11px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--accent-primary);">Group ' + (gi + 1) + '</span> &mdash; ';
+            html += g.components.map(function (c) {
+                var s = escapeHtml(c.exercise ? c.exercise.charAt(0).toUpperCase() + c.exercise.slice(1) : '');
+                
+                if (c.target_type === 'reps') {
+                    if (c.weight_kg) s += ' @ ' + c.weight_kg + 'kg';
+                    if (c.reps)      s += ' ' + c.reps + ' reps';
+                } else if (c.target_type === 'calories') {
+                    s += ' ' + (c.calories || 0) + ' cal';
+                } else if (c.target_type === 'distance') {
+                    s += ' ' + (c.distance_meters || 0) + 'm';
+                } else if (c.target_type === 'time') {
+                    var sec = c.time_seconds || 0;
+                    var m = Math.floor(sec / 60);
+                    var s2 = sec % 60;
+                    s += ' ' + m + ':' + s2.toString().padStart(2, '0');
+                } else if (c.target_type === 'shuttle') {
+                    s += ' ' + (c.reps || 0) + ' × ' + (c.distance_meters || 0) + 'm';
+                } else {
+                    if (c.weight_kg) s += ' @ ' + c.weight_kg + 'kg';
+                    if (c.reps)      s += ' ' + c.reps + ' reps';
+                }
+                return s;
+            }).join(' / ');
+            if (g.rest_seconds) {
+                html += '<span style="font-size:11px;color:var(--text-muted);"> &bull; ' + formatRest(g.rest_seconds) + '</span>';
+            }
+            html += '</div>';
+        });
+        return html;
+    }
+
+    function ensureDateGroup(dateStr) {
+        var existing = document.querySelector('.history-date-group[data-date="' + dateStr + '"]');
+        if (existing) return existing;
+
+        var group = document.createElement('div');
+        group.className = 'history-date-group';
+        group.dataset.date = dateStr;
+        group.innerHTML = '<div class="history-date">' + escapeHtml(dateStr) + '</div>';
+        var sep = document.createElement('div');
+        sep.className = 'history-date-separator';
+        group.appendChild(sep);
+
+        var groups = Array.from(document.querySelectorAll('.history-date-group'));
+        var before = groups.find(function (n) { return n.dataset.date < dateStr; });
+        if (before && before.parentNode) {
+            before.parentNode.insertBefore(group, before);
+        } else {
+            var fb = pageContent ? pageContent.querySelector('.filter-bar') : null;
+            if (fb && fb.nextSibling) pageContent.insertBefore(group, fb.nextSibling);
+            else if (pageContent) pageContent.appendChild(group);
+        }
+        return group;
+    }
+
+    function showFlash(msg) {
+        if (!pageContent) return;
+        var el = document.createElement('div');
+        el.className = 'flash success';
+        el.textContent = msg;
+        pageContent.prepend(el);
+        setTimeout(function () { el.remove(); }, 3000);
+    }
+
+    // ---- Filter ----
+    var rangeSelect = document.getElementById('filter-range');
+    var exerciseSelect = document.getElementById('filter-exercise');
+
+    function applyFilters() {
+        var params = new URLSearchParams();
+        if (rangeSelect.value) params.set('range', rangeSelect.value);
+        if (exerciseSelect.value) params.set('exercise', exerciseSelect.value);
+        var qs = params.toString();
+        window.location.href = window.location.pathname + (qs ? '?' + qs : '');
+    }
+
+    rangeSelect.addEventListener('change', applyFilters);
+    if (exerciseSelect) {
+        exerciseSelect.addEventListener('change', applyFilters);
+    }
+
+    // ---- Edit open ----
+    document.querySelectorAll('[data-action="edit"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var f = document.getElementById('edit-form-' + this.dataset.sessionId);
+            if (f) f.style.display = 'block';
+        });
+    });
+
+    // ---- Cancel ----
+    document.querySelectorAll('[data-action="cancel"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var f = document.getElementById('edit-form-' + this.dataset.sessionId);
+            if (f) f.style.display = 'none';
+        });
+    });
+
+    // ---- Edit submit (AJAX) ----
+    document.querySelectorAll('div[id^="edit-form-"] form').forEach(function (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+
+            var hasInvalid = false;
+            form.querySelectorAll('input[type="number"]').forEach(function(input) {
+                if (input.value && Number(input.value) < 0) {
+                    hasInvalid = true;
+                }
+            });
+
+            if (hasInvalid) {
+                alert('Values cannot be negative');
+                return;
+            }
+
+            var row = form.closest('.history-row');
+            var group = row ? row.closest('.history-date-group') : null;
+            var originalDate = group ? group.dataset.date : '';
+
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (!data.success) { alert(data.error || 'Save failed'); return; }
+
+                var ws = data.session;
+                var newDate = ws.date || originalDate;
+
+                // Update name
+                var nameEl = row ? row.querySelector('[data-role="session-name"]') : null;
+                if (nameEl) nameEl.textContent = ws.name;
+
+                // Update context badges
+                var badgesEl = row ? row.querySelector('.context-badges-container') : null;
+                
+                // If the container doesn't exist but we need it, we should insert it right after the name
+                if (!badgesEl && ws.context) {
+                    badgesEl = document.createElement('div');
+                    badgesEl.className = 'context-badges-container';
+                    badgesEl.style.marginBottom = '6px';
+                    if (nameEl && nameEl.nextSibling) {
+                        nameEl.parentNode.insertBefore(badgesEl, nameEl.nextSibling);
+                    } else if (nameEl) {
+                        nameEl.parentNode.appendChild(badgesEl);
+                    }
+                }
+
+                if (badgesEl) {
+                    if (ws.context) {
+                        var badgeHtml = '<span class="wod-type-badge wod-type-badge--' + ws.context.toLowerCase().replace(/ /g, '').replace(/-/g, '') + '">' + escapeHtml(ws.context) + '</span>';
+                        if ((ws.context === 'AMRAP' || ws.context === 'For Time') && ws.time_cap_minutes) {
+                            badgeHtml += ' <span class="wod-type-detail">' + ws.time_cap_minutes + ' min' + (ws.context === 'For Time' ? ' cap' : '') + '</span>';
+                        } else if (ws.context === 'EMOM' && ws.emom_interval && ws.emom_duration) {
+                            badgeHtml += ' <span class="wod-type-detail">every ' + ws.emom_interval + ' min for ' + ws.emom_duration + ' min</span>';
+                        }
+                        badgesEl.innerHTML = badgeHtml;
+                    } else {
+                        badgesEl.remove();
+                    }
+                }
+
+                // Update exercises display from returned groups
+                var exEl = row ? row.querySelector('[data-role="session-exercises"]') : null;
+                if (ws.groups && ws.groups.length) {
+                    var exHtml = buildExercisesHtml(ws.groups);
+                    if (exEl) {
+                        exEl.innerHTML = exHtml;
+                    } else {
+                        exEl = document.createElement('div');
+                        exEl.className = 'card-description';
+                        exEl.setAttribute('data-role', 'session-exercises');
+                        exEl.innerHTML = exHtml;
+                        var rc = row ? row.querySelector('.history-row-content') : null;
+                        var notesEl2 = rc ? rc.querySelector('[data-role="session-notes"]') : null;
+                        if (notesEl2) rc.insertBefore(exEl, notesEl2);
+                        else if (rc) rc.appendChild(exEl);
+                    }
+                }
+
+                // Update notes display
+                var notesEl = row ? row.querySelector('[data-role="session-notes"]') : null;
+                if (ws.notes) {
+                    var noteHtml = '<strong>Notes:</strong> ' + escapeHtml(ws.notes);
+                    if (notesEl) {
+                        notesEl.innerHTML = noteHtml;
+                    } else {
+                        notesEl = document.createElement('div');
+                        notesEl.className = 'card-description';
+                        notesEl.setAttribute('data-role', 'session-notes');
+                        notesEl.style.marginTop = '6px';
+                        notesEl.innerHTML = noteHtml;
+                        var rc2 = row ? row.querySelector('.history-row-content') : null;
+                        if (rc2) rc2.appendChild(notesEl);
+                    }
+                } else if (notesEl) {
+                    notesEl.remove();
+                }
+
+                // Update result display
+                var resultEl = row ? row.querySelector('[data-role="session-result"]') : null;
+                if (ws.result) {
+                    var resultHtml = '<strong>Result:</strong> ' + escapeHtml(ws.result);
+                    if (resultEl) {
+                        resultEl.innerHTML = resultHtml;
+                    } else {
+                        resultEl = document.createElement('div');
+                        resultEl.className = 'card-description';
+                        resultEl.setAttribute('data-role', 'session-result');
+                        resultEl.style.marginTop = '4px';
+                        resultEl.style.color = 'var(--accent-primary)';
+                        resultEl.style.fontWeight = '600';
+                        resultEl.innerHTML = resultHtml;
+                        var rc3 = row ? row.querySelector('.history-row-content') : null;
+                        if (rc3) rc3.appendChild(resultEl);
+                    }
+                } else if (resultEl) {
+                    resultEl.remove();
+                }
+
+                // Move row if date changed
+                if (row && group && newDate !== originalDate) {
+                    row.remove();
+                    if (!group.querySelector('.history-row')) group.remove();
+                    var tg = ensureDateGroup(newDate);
+                    var sep = tg.querySelector('.history-date-separator');
+                    if (sep) tg.insertBefore(row, sep);
+                    else tg.appendChild(row);
+                }
+
+                var editDiv = document.getElementById('edit-form-' + ws.id);
+                if (editDiv) editDiv.style.display = 'none';
+                showFlash('Workout updated');
+            })
+            .catch(function () { alert('Error updating workout'); });
+        });
+    });
+
+    // ---- Delete ----
+    document.querySelectorAll('[data-action="delete"]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            var id = this.dataset.id;
+            var row = this.closest('.history-row');
+            var group = row ? row.closest('.history-date-group') : null;
+
+            if (!confirm('Delete this workout? This cannot be undone.')) return;
+
+            fetch('/workout_sessions/' + id + '/delete', {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function (res) { return res.json(); })
+            .then(function (data) {
+                if (data.success) {
+                    row.remove();
+                    if (group && !group.querySelector('.history-row')) group.remove();
+                    showFlash('Workout deleted');
+                } else {
+                    alert(data.error || 'Delete failed');
+                }
+            })
+            .catch(function () { alert('Error deleting workout'); });
+        });
+    });
+});
+</script>
+
+{% endblock %}

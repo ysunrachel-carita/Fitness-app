@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}Profile{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/profile.css">
+{% endblock %}
+
+{% block content %}
+
+<div class="page-wrapper">
+     <div class="page-content">
+
+    <!-- HEADER -->
+        <div class="profile-header">
+
+            <div class="profile-avatar-section">
+                <div class="profile-avatar" id="avatar-preview" onclick="document.getElementById('photo-upload').click()">
+                    {% if profile.photo_path %}
+                        <img src="{{ url_for('static', filename='uploads/' + profile.photo_path) }}" class="profile-avatar-image">
+                    {% else %}
+                        <span class="profile-avatar-letter">{{ session.username[0]|upper }}</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="profile-header-content">
+                <h1 class="profile-username">{{ profile.display_name or session.username }}</h1>
+                <p class="profile-subtitle">@{{ session.username }}</p>
+            </div>
+
+        </div>
+
+        {% if success %}
+        <div class="profile-message profile-message--success">
+            Profile updated successfully!
+        </div>
+        {% endif %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+            <div class="profile-message profile-message--{{ category }}">
+                {{ message }}
+            </div>
+            {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <!-- FORM -->
+        <form method="POST" class="profile-form" enctype="multipart/form-data">
+            <input type="file" id="photo-upload" name="photo" accept="image/*" style="display: none;">
+
+            <!-- DISPLAY NAME -->
+            <div class="profile-section">
+                <h2 class="section-title">Display Name</h2>
+
+                <div class="form-group">
+                    <label class="form-label">Display Name</label>
+                    <input class="form-input" type="text" name="display_name"
+                           value="{{ profile.display_name or '' }}" placeholder="Enter your display name">
+                    <span class="helper-text">This name will be shown across the app</span>
+                </div>
+            </div>
+
+            <!-- PERSONAL METRICS -->
+            <div class="profile-section">
+                <h2 class="section-title">Personal Metrics</h2>
+
+                <div class="form-grid">
+
+                    <!-- Weight -->
+                    <div class="form-group">
+                        <label class="form-label">Weight</label>
+                        <span class="helper-text">Used for performance insights</span>
+
+                        <div class="input-with-unit">
+                            <input class="form-input" type="number" step="0.1" min="0" name="weight"
+                                value="{{ profile.weight_display or '' }}" placeholder="Enter weight">
+                            <select class="form-select unit-select" name="weight_unit">
+                                <option value="kg" {% if profile.weight_unit == 'kg' %}selected{% endif %}>kg</option>
+                                <option value="lb" {% if profile.weight_unit == 'lb' %}selected{% endif %}>lb</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Height -->
+                    <div class="form-group">
+                        <label class="form-label">Height</label>
+                        <span class="helper-text">Helps with BMI calculations</span>
+
+                        <div class="height-input-container">
+
+                            <div id="height-cm-input" class="height-unit-group">
+                                <div class="input-with-unit">
+                                    <input class="form-input" type="number" step="0.1" min="0" name="height"
+                                        value="{{ profile.height_display or '' }}" placeholder="Enter height">
+                                    <select class="form-select unit-select" name="height_unit" id="height_unit" onchange="toggleHeightUnit()">
+                                        <option value="cm" {% if profile.height_unit == 'cm' %}selected{% endif %}>cm</option>
+                                        <option value="ft-in" {% if profile.height_unit == 'ft-in' %}selected{% endif %}>ft/in</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            <div id="height-ft-input" class="height-unit-group" style="display: none;">
+                                <div class="feet-inches-input">
+                                    <input class="form-input" type="number" min="0" name="height_feet" placeholder="Feet">
+                                    <span class="unit-separator">ft</span>
+                                    <input class="form-input" type="number" min="0" name="height_inches" placeholder="Inches">
+                                    <span class="unit-separator">in</span>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+
+                    <!-- Preferred Unit -->
+                    <div class="form-group">
+                        <label class="form-label">Preferred Unit</label>
+                        <span class="helper-text">Used throughout the app</span>
+
+                        <select class="form-select" name="preferred_unit">
+                            <option value="kg" {% if profile.preferred_unit == 'kg' %}selected{% endif %}>kg</option>
+                            <option value="lb" {% if profile.preferred_unit == 'lb' %}selected{% endif %}>lb</option>
+                        </select>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- TRAINING INFO -->
+            <div class="profile-section">
+                <h2 class="section-title">Training Information</h2>
+
+                <div class="form-grid">
+
+                    <div class="form-group">
+                        <label class="form-label">Goal</label>
+                        <span class="helper-text">Your current training goal (e.g. strength, fat loss, endurance)</span>
+                        <input class="form-input" type="text" name="goal"
+                            value="{{ profile.goal or '' }}">
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">Training Frequency</label>
+                        <span class="helper-text">Your weekly training schedule</span>
+
+                        <select class="form-select" name="training_frequency">
+                            {% for i in range(1,8) %}
+                            <option value="{{ i }}" {% if profile.training_frequency == i %}selected{% endif %}>
+                                {{ i }} time{{ 's' if i > 1 else '' }} per week
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- ACTIONS -->
+            <div class="profile-actions">
+                <button type="submit" class="btn btn--primary">
+                    Save Profile
+                </button>
+                <a href="/change-password" class="btn btn--secondary">Change Password</a>
+            </div>
+
+        </form>
+     </div>
+</div>
+
+<script>
+function toggleHeightUnit() {
+    const heightUnit = document.getElementById('height_unit').value;
+    const cmInput = document.getElementById('height-cm-input');
+    const ftInput = document.getElementById('height-ft-input');
+    
+    if (heightUnit === 'ft-in') {
+        cmInput.style.display = 'none';
+        ftInput.style.display = 'block';
+    } else {
+        cmInput.style.display = 'block';
+        ftInput.style.display = 'none';
+    }
+}
+
+// Photo upload preview
+document.getElementById('photo-upload').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file && file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const avatarPreview = document.getElementById('avatar-preview');
+            avatarPreview.innerHTML = `<img src="${e.target.result}" alt="Profile" class="profile-avatar-image">`;
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+// Initialize height unit on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleHeightUnit();
+});
+</script>
+{% endblock %}

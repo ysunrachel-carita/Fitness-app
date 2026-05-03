@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+
+{% block title %}Register{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/auth.css">
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-container">
+    <div class="auth-card">
+        <h1>NEXUS</h1>
+        <p class="auth-subtitle">Create your account</p>
+
+        <form method="POST" action="{{ url_for('auth.register') }}">
+            <div class="auth-form-group">
+                <label>Username</label>
+                <input name="username" type="text" required />
+            </div>
+
+            <div class="auth-form-group">
+                <label>Password</label>
+                <div class="password-input-wrapper">
+                    <input name="password" type="password" id="register_password" required />
+                    <button type="button" class="password-toggle" onclick="togglePassword('register_password')">Show</button>
+                </div>
+                <p class="password-helper-text">Min 8 characters, 1 letter, 1 number, 1 special character (e.g. "!, @, #")</p>
+            </div>
+
+            <div class="auth-form-group">
+                <label>Confirm Password</label>
+                <div class="password-input-wrapper">
+                    <input name="confirm_password" type="password" id="register_confirm" required />
+                    <button type="button" class="password-toggle" onclick="togglePassword('register_confirm')">Show</button>
+                </div>
+            </div>
+            <button type="submit" class="btn btn--primary btn--full">Create Account</button>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <p class="auth-error {{ category }}">{{ message }}</p>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+        </form>
+
+        <p class="auth-footer">
+            Already have an account? <a href="{{ url_for('auth.login') }}" class="auth-link">Log in</a>
+        </p>
+    </div>
+</div>
+
+<script>
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const button = input.nextElementSibling;
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = 'Hide';
+    } else {
+        input.type = 'password';
+        button.textContent = 'Show';
+    }
+}
+</script>
+
+{% endblock %}

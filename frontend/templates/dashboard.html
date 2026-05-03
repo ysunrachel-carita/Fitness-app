@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/dashboard.css">
+{% endblock %}
+
+{% block content %}
+<div class="page-wrapper">
+    <div class="page-content">
+
+        <div class="dashboard-intro">
+            <p class="dashboard-greeting">Welcome back, {{ display_name }}!</p>
+            {% if weekly_sessions == 0 %}
+            <p class="dashboard-consistency dashboard-consistency--empty">No training yet this week</p>
+            {% elif weekly_sessions == 1 %}
+            <p class="dashboard-consistency"><span class="dashboard-consistency__prefix">You trained</span> <span class="dashboard-consistency__count">1</span> <span class="dashboard-consistency__suffix">day this week</span></p>
+            {% else %}
+            <p class="dashboard-consistency"><span class="dashboard-consistency__prefix">You trained</span> <span class="dashboard-consistency__count">{{ weekly_sessions }}</span> <span class="dashboard-consistency__suffix">days this week</span></p>
+            {% endif %}
+        </div>
+
+        <div class="section-header dashboard-section-header">
+            <h2 class="section-title">This Week</h2>
+        </div>
+
+        <div class="grid">
+            {% if not activities %}
+                <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 40px 20px;">
+                    <p style="color: var(--text-muted); font-size: 15px;">Your week is a blank slate. Time to get moving!</p>
+                </div>
+            {% else %}
+                {% for activity in activities %}
+                    <div class="card activity-card card--{{ activity.type }}" onclick="toggleActivityCard(this)">
+                        <div class="flex flex-between" style="display: flex; justify-content: space-between; align-items: center;">
+                            <span class="card-meta">
+                                {% if activity.type == 'lift' %}🏋️ LIFT
+                                {% elif activity.type == 'workout' %}⏱️ WORKOUT
+                                {% elif activity.type == 'run' %}🏃 RUN
+                                {% endif %}
+                            </span>
+                            <span class="card-meta" style="white-space: nowrap;">{{ activity.date|format_short_date }}</span>
+                        </div>
+
+                        <h3>{{ activity.title.title() if activity.title else 'Untitled' }}</h3>
+
+                        <div class="card-description">{{ activity.subtitle }}</div>
+
+                        <!-- EXPANDABLE DETAIL -->
+                        <div class="activity-detail">
+
+                            {% if activity.type == 'lift' and activity.detail.sets %}
+                                <div class="detail-set-grid">
+                                    <div class="detail-set-header">
+                                        <span>Set</span>
+                                        <span>Weight</span>
+                                        <span>Reps</span>
+                                    </div>
+                                    {% for s in activity.detail.sets %}
+                                    <div class="detail-set-row">
+                                        <span class="detail-set-num">{{ s.set_num }}</span>
+                                        <span class="detail-set-weight">{{ s.weight }}kg</span>
+                                        <span class="detail-set-reps">× {{ s.reps }}</span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+
+                            {% elif activity.type == 'workout' and activity.detail.groups %}
+                                <div class="detail-workout-groups">
+                                    {% for group in activity.detail.groups %}
+                                        {% if group %}
+                                        <div class="detail-group">
+                                            {% for comp in group %}
+                                            <div class="detail-comp-row">
+                                                <span class="detail-comp-exercise">{{ comp.exercise }}</span>
+                                                <span class="detail-comp-stats">
+                                                    {% if comp.weight %}{{ comp.weight }}kg{% endif %}
+                                                    {% if comp.weight and comp.reps %} × {% endif %}
+                                                    {% if comp.reps %}{{ comp.reps }} reps{% endif %}
+                                                </span>
+                                            </div>
+                                            {% endfor %}
+                                        </div>
+                                        {% if not loop.last %}<div class="detail-group-divider"></div>{% endif %}
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+
+                            {% elif activity.type == 'run' %}
+                                <div class="detail-run-stats">
+                                    <div class="detail-run-stat">
+                                        <span class="detail-run-label">Distance</span>
+                                        <span class="detail-run-value">{{ activity.detail.distance }}</span>
+                                    </div>
+                                    <div class="detail-run-stat">
+                                        <span class="detail-run-label">Duration</span>
+                                        <span class="detail-run-value">{{ activity.detail.duration }}</span>
+                                    </div>
+                                    <div class="detail-run-stat">
+                                        <span class="detail-run-label">Pace</span>
+                                        <span class="detail-run-value">{{ activity.detail.pace }}</span>
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            {% if activity.detail.notes %}
+                                <div class="detail-notes">{{ activity.detail.notes }}</div>
+                            {% endif %}
+
+                        </div>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        </div> <!-- grid -->
+
+        <div class="dashboard-actions hide-on-mobile">
+            <a href="/lifts" class="btn btn--primary btn--sm">Log Lift</a>
+            <a href="/log_workout" class="btn btn--primary btn--sm">Log Workout</a>
+            <a href="/log_run" class="btn btn--primary btn--sm">Log Run</a>
+        </div>
+
+    </div>
+</div>
+
+<script>
+function toggleActivityCard(card) {
+    const detail = card.querySelector('.activity-detail');
+    if (!detail) return;
+    const isOpen = card.classList.contains('is-expanded');
+    card.classList.toggle('is-expanded', !isOpen);
+    if (!isOpen) {
+        detail.style.maxHeight = detail.scrollHeight + 'px';
+    } else {
+        detail.style.maxHeight = '0';
+    }
+}
+</script>
+{% endblock %}

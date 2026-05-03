@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}Login{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="/static/pages/auth.css">
+{% endblock %}
+
+{% block content %}
+
+<div class="auth-container">
+    <div class="auth-card">
+        <h1>NEXUS</h1>
+        <p class="auth-subtitle">Train smarter. Start here.</p>
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="auth-form-group">
+                <label>Username</label>
+                <input name="username" type="text" required />
+            </div>
+
+            <div class="auth-form-group">
+                <label>Password</label>
+                <div class="password-input-wrapper">
+                    <input name="password" type="password" id="login_password" required />
+                    <button type="button" class="password-toggle" onclick="togglePassword('login_password')">Show</button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn btn--primary btn--full">Continue</button>
+
+            {% with messages = get_flashed_messages(with_categories=true) %}
+              {% if messages %}
+                {% for category, message in messages %}
+                  <p class="auth-error {{ category }}">{{ message }}</p>
+                {% endfor %}
+              {% endif %}
+            {% endwith %}
+        </form>
+
+        <p class="auth-footer">
+            New here? <a href="{{ url_for('auth.register') }}" class="auth-link">Create account</a>
+        </p>
+    </div>
+</div>
+
+<script>
+function togglePassword(inputId) {
+    const input = document.getElementById(inputId);
+    const button = input.nextElementSibling;
+    
+    if (input.type === 'password') {
+        input.type = 'text';
+        button.textContent = 'Hide';
+    } else {
+        input.type = 'password';
+        button.textContent = 'Show';
+    }
+}
+</script>
+
+{% endblock %}
