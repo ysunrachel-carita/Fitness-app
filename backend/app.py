@@ -19,7 +19,7 @@ def create_app():
     template_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'templates'))
     static_dir = os.path.abspath(os.path.join(base_dir, '..', 'frontend', 'static'))
     
-    import sys, os
+    import sys
     print("\n" + "="*40, file=sys.stderr)
     print("CRITICAL SERVER PATH DIAGNOSTIC", file=sys.stderr)
     print(f"base_dir: {base_dir}", file=sys.stderr)
