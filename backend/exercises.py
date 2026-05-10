@@ -116,7 +116,9 @@ def resolve_exercise(conn, user_input):
         return None, None
     
     key = canonical_exercise_key(user_input)
+    display_name = user_input.title()
     
+    # Try to find existing
     row = conn.execute(
         'SELECT id, name FROM exercises WHERE canonical_key = %s', (key,)
     ).fetchone()
@@ -124,17 +126,23 @@ def resolve_exercise(conn, user_input):
     if row:
         return row['id'], row['name']
     
+    # Concurrent-safe insert: if it was just added by someone else, we just get the existing one
+    # Note: Using DO UPDATE SET name=EXCLUDED.name to ensure we get a row back even on conflict
     insert_cursor = conn.execute(
-        'INSERT INTO exercises (name, category, canonical_key) '
-        'VALUES (%s, %s, %s) RETURNING id',
-        (user_input.title(), 'Other', key)
+        '''
+        INSERT INTO exercises (name, category, canonical_key) 
+        VALUES (%s, %s, %s)
+        ON CONFLICT (canonical_key) DO UPDATE SET name = EXCLUDED.name
+        RETURNING id
+        ''',
+        (display_name, 'Other', key)
     )
     new_id = insert_cursor.lastrowid
     
     # Refresh cache
     load_exercises_from_db()
     
-    return new_id, user_input.title()
+    return new_id, display_name
 
 def populate_exercises_if_needed():
     conn = get_db()

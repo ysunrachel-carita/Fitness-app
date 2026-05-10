@@ -80,16 +80,13 @@
 
                                     <div class="progress-hero-overlay" id="progress-hero-overlay"{% if not selected_exercise or not selected_exercise.locked %} hidden{% endif %}>
                                         <div class="progress-hero-overlay__eyebrow">Chart not ready</div>
-                                        <div class="progress-hero-overlay__title" id="progress-hero-overlay-title">Log {{ selected_exercise.sessions_needed if selected_exercise else 0 }} more session{{ 's' if selected_exercise and selected_exercise.sessions_needed != 1 else '' }} to unlock performance insights</div>
-                                        <p class="progress-hero-overlay__text" id="progress-hero-overlay-message"{% if not selected_exercise or selected_exercise.locked %} hidden{% endif %}>{{ selected_exercise.trend.message if selected_exercise else '' }}</p>
+                                        <div class="progress-hero-overlay__title" id="progress-hero-overlay-title">Log {{ selected_exercise.sessions_needed if selected_exercise else 0 }} more session{{ 's' if selected_exercise and selected_exercise.sessions_needed != 1 else '' }} to unlock progress chart</div>
                                     </div>
                                 </div>
 
                                 <div class="progress-chart-axis progress-chart-axis--x" id="progress-hero-x-axis"></div>
                             </div>
                         </div>
-
-                        <div class="progress-insight-message{% if selected_exercise and selected_exercise.trend.emoji == '📈' %} progress-insight-message--positive{% elif selected_exercise and selected_exercise.trend.emoji == '📉' %} progress-insight-message--negative{% elif selected_exercise and selected_exercise.trend.emoji == '✨' %} progress-insight-message--steady{% elif selected_exercise and selected_exercise.trend.emoji == '🔒' %} progress-insight-message--locked{% endif %}" id="progress-trend-message">{{ selected_exercise.trend.message if selected_exercise else '' }}</div>
                     </div>
 
                     <div class="card-item progress-primary-stats">
@@ -223,7 +220,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const sessionsLinks = document.getElementById('progress-sessions-links');
     const lastWorkoutValue = document.getElementById('progress-last-workout-value');
     const lastWorkoutMeta = document.getElementById('progress-last-workout-meta');
-    const trendMessage = document.getElementById('progress-trend-message');
     const rmPrimary = document.getElementById('progress-rm-primary');
     const rmPrimaryLabel = document.getElementById('progress-rm-primary-label');
     const rmPrimaryKind = document.getElementById('progress-rm-primary-kind');
@@ -363,7 +359,6 @@ document.addEventListener('DOMContentLoaded', function() {
         if (sessionsValue) sessionsValue.textContent = '-';
         if (lastWorkoutValue) lastWorkoutValue.textContent = '-';
         if (lastWorkoutMeta) lastWorkoutMeta.textContent = '-';
-        if (trendMessage) trendMessage.textContent = '';
         if (rmPrimaryLabel) rmPrimaryLabel.textContent = '1RM';
         if (rmPrimaryKind) rmPrimaryKind.textContent = '-';
         if (rmPrimaryValue) rmPrimaryValue.textContent = '-';
@@ -567,16 +562,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (lastWorkoutMeta) {
             lastWorkoutMeta.textContent = exercise.current_lift.date_label;
         }
-        if (trendMessage) {
-            trendMessage.textContent = exercise.trend.message;
-        }
+
         if (overlayTitle) {
             overlayTitle.textContent = `Log ${exercise.sessions_needed} more session${exercise.sessions_needed === 1 ? '' : 's'} to unlock performance insights`;
         }
-        if (overlayMessage) {
-            overlayMessage.hidden = exercise.locked;
-            overlayMessage.textContent = exercise.trend.message;
-        }
+
         if (overlay) {
             overlay.hidden = !exercise.locked;
         }

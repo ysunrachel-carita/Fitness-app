@@ -102,4 +102,4 @@ def fetch_dashboard_activities(conn, user_id):
     seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
     weekly_count = sum(1 for d in active_dates if d >= seven_days_ago)
 
-    return activities[:20], weekly_count
+    return activities[:6], weekly_count

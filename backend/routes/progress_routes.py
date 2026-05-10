@@ -2,7 +2,7 @@ from flask import Blueprint, request, session, render_template
 from db import get_db
 from utils.auth import login_required
 from exercises import get_all_exercises, resolve_exercise
-from services.lift_service import fetch_all_progress_sessions, build_progress_trend
+from services.lift_service import fetch_all_progress_sessions
 from utils.progress_math import build_pr_gallery, build_estimated_rm_profile
 from utils.formatting import format_weight, format_progress_date
 from collections import defaultdict
@@ -34,7 +34,6 @@ def progress():
         ex_sessions_asc = list(reversed(ex_sessions))
         
         rm_profile = build_estimated_rm_profile(ex_sessions)
-        trend = build_progress_trend(ex_sessions_asc)
         
         lift_count = sum(1 for s in ex_sessions if s.get('source') == 'lift')
         workout_count = sum(1 for s in ex_sessions if s.get('source') == 'workout')
@@ -59,6 +58,7 @@ def progress():
                 'notes': s.get('notes')
             })
             
+        locked = len(ex_sessions) < 3
         insight = {
             'exercise': ex_name,
             'exercise_label': ex_name.title(),
@@ -66,14 +66,13 @@ def progress():
             'lift_count': lift_count,
             'workout_count': workout_count,
             'rm_profile': rm_profile,
-            'trend': trend,
             'current_lift': {
                 'weight_display': ex_sessions[0].get('weight_display', '-'),
                 'date_label': ex_sessions[0].get('date_label', '-'),
                 'summary_label': ex_sessions[0].get('summary_label', '-')
             },
-            'locked': trend.get('locked', False),
-            'sessions_needed': max(0, 5 - len(ex_sessions)),
+            'locked': locked,
+            'sessions_needed': max(0, 2 - len(ex_sessions)),
             'chart_values': chart_values,
             'chart_dates': chart_dates,
             'sessions_list': sessions_list

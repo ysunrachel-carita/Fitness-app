@@ -208,22 +208,6 @@ def build_pr_gallery(sessions):
         'heaviest_pr_exercise': heaviest_pr['exercise'] if heaviest_pr else None,
     }
 
-def build_progress_trend(sessions_sorted):
-    if len(sessions_sorted) < 5:
-        return {'status': 'locked', 'improvement': 0, 'label': 'Locked'}
-    
-    last_5 = sessions_sorted[-5:]
-    first_val = last_5[0].get('session_value') or 0
-    last_val = last_5[-1].get('session_value') or 0
-    
-    if first_val <= 0:
-        return {'status': 'neutral', 'improvement': 0, 'label': 'No Change'}
-    
-    improvement = ((last_val - first_val) / first_val) * 100
-    if improvement > 1:
-        return {'status': 'improving', 'improvement': round(improvement, 1), 'label': 'Improving'}
-    elif improvement < -1:
-        return {'status': 'declining', 'improvement': round(improvement, 1), 'label': 'Declining'}
 def _enrich_run(row):
     """Add computed display fields to a run row dict."""
     r = dict(row)

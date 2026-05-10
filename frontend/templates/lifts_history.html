@@ -33,7 +33,7 @@
 
             <select id="filter-exercise">
                 <option value="" {% if not current_exercise %}selected{% endif %}>All Exercises</option>
-                {% for ex in exercises %}
+                {% for ex in filter_exercises %}
                 <option value="{{ ex }}" {% if current_exercise == ex %}selected{% endif %}>{{ ex }}</option>
                 {% endfor %}
             </select>

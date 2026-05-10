@@ -67,7 +67,9 @@ def log_run_service(user_id, data):
         ).fetchone()[0]
         
         prev_enriched = _enrich_run(dict(previous_run)) if previous_run else None
-        insight, emoji, is_pb = generate_run_insight(new_run, prev_enriched, fastest_ever)
+        curr_pace = new_run['pace_seconds_per_km']
+        is_pb = fastest_ever is None or curr_pace < fastest_ever
+        insight, emoji = generate_run_insight(new_run, is_pb, is_first_run=(prev_enriched is None))
 
         prev_data = None
         if prev_enriched:

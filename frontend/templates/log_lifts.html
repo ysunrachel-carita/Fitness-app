@@ -364,7 +364,7 @@
                     .then(data => {
                         if (!data.success) return;
 
-                        if (data.is_pr) {
+                        if (data.is_pr || data.is_first_time) {
                             createToast(data);
                         } else {
                             const msg = document.createElement('div');
@@ -485,8 +485,8 @@
 
             const session = data.session || {};
             const type = "pr";
-            const insightEmoji = "🏆";
-            const insightMessage = `New PR — ${session.weight_kg}kg. Strongest lift ever!`;
+            const insightEmoji = data.emoji || "🏆";
+            const insightMessage = data.insight || `New PR — ${session.weight_kg}kg. Strongest lift ever!`;
 
             toast.className = `toast-feedback toast--${type}`;
 

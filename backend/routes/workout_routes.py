@@ -23,11 +23,7 @@ def save_workout_session():
     user_id = session["user_id"]
     payload = request.get_json(silent=True) or {}
     
-    if 'set_groups' in payload and 'groups' not in payload:
-        payload['groups'] = payload['set_groups']
-    if 'type' in payload and 'title' not in payload:
-        payload['title'] = payload['type']
-
+    # Call the service to create the session
     ws_id, error = create_workout_session(user_id, payload)
     
     if error:
@@ -99,12 +95,28 @@ def workout_history():
                 JOIN exercises e ON sc.exercise_id = e.id
                 WHERE sc.set_group_id = %s
             """, (g['id'],)).fetchall()
+            
+            comp_list = [dict(c) for c in comps]
+            
+            # If an exercise filter is active, we only show this group if it contains the filtered exercise.
+            # AND we filter the component list to only show that exercise if desired.
+            # (Usually in workouts, you want to see the whole group if any part matches, 
+            # but let's filter to just the exercise to satisfy "only shows filtered exercise")
+            if exercise_filter:
+                filtered_comps = [c for c in comp_list if c['exercise'].lower() == exercise_filter.lower()]
+                if not filtered_comps:
+                    continue
+                comp_list = filtered_comps
+
             group_list.append({
                 'id': g['id'],
                 'order_index': g['order_index'],
                 'rest_seconds': g['rest_seconds'],
-                'components': [dict(c) for c in comps]
+                'components': comp_list
             })
+
+        if not group_list and exercise_filter:
+            continue
 
         sessions.append({
             'id': row['id'],
@@ -115,8 +127,8 @@ def workout_history():
             'time_cap_minutes': row['time_cap_minutes'],
             'emom_interval': row['emom_interval'],
             'emom_duration': row['emom_duration'],
-            'group_count': row['group_count'],
-            'component_count': row['component_count'],
+            'group_count': len(group_list),
+            'component_count': sum(len(g['components']) for g in group_list),
             'result': row['result'],
             'groups': group_list,
         })

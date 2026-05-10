@@ -94,6 +94,9 @@ def log_lift_service(user_id, payload):
     conn = get_db()
     try:
         exercise_id, exercise_name = resolve_exercise(conn, exercise_input)
+        if not exercise_id:
+            return None, f"Could not resolve exercise: {exercise_input}"
+
         created_at = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
         ls_cursor = conn.execute(
@@ -101,6 +104,9 @@ def log_lift_service(user_id, payload):
             (user_id, exercise_id, date_str, notes, created_at)
         )
         ls_id = ls_cursor.lastrowid
+
+        if not ls_id:
+            return None, "Failed to create lift session (database error)."
 
         for index, s in enumerate(sets):
             conn.execute(
@@ -110,34 +116,13 @@ def log_lift_service(user_id, payload):
 
         # Re-fetch for enrichment
         row = conn.execute("SELECT * FROM lift_sessions WHERE id = %s", (ls_id,)).fetchone()
+        if not row:
+            return None, "Lift session created but could not be retrieved."
+            
         current_session = dict(row)
         current_session['exercise'] = exercise_name
         current_session['sets'] = sets
         _enrich_session_record(current_session)
-
-        # Get previous session for insights
-        prev_row = conn.execute(
-            """
-            SELECT ls.*, e.name as exercise
-            FROM lift_sessions ls
-            JOIN exercises e ON ls.exercise_id = e.id
-            WHERE ls.user_id = %s AND ls.exercise_id = %s AND ls.date < %s
-            ORDER BY ls.date DESC, ls.created_at DESC LIMIT 1
-            """,
-            (user_id, exercise_id, date_str)
-        ).fetchone()
-
-        prev_data = None
-        if prev_row:
-            prev_session = dict(prev_row)
-            prev_sets = conn.execute("SELECT weight_kg, reps FROM lift_sets WHERE lift_session_id = %s", (prev_session['id'],)).fetchall()
-            prev_session['sets'] = [dict(ps) for ps in prev_sets]
-            _enrich_session_record(prev_session)
-            prev_best = prev_session.get('best_set') or {}
-            prev_data = {
-                'weight': prev_best.get('weight_kg'),
-                'reps': prev_best.get('reps')
-            }
 
         conn.commit()
         
@@ -170,75 +155,11 @@ def log_lift_service(user_id, payload):
 
         return {
             'current_session': current_session,
-            'prev_data': prev_data,
             'is_pr': is_pr
         }, None
     finally:
         conn.close()
 
-def _session_metric_value(session):
-    try:
-        if session.get('best_set'):
-            return float(session['best_set']['value'])
-        
-        weight_value = float(session.get('weight_kg'))
-        reps_value = int(session.get('reps'))
-        if weight_value > 0 and reps_value > 0:
-            return float(estimate_one_rep_max(weight_value, reps_value))
-    except (TypeError, ValueError):
-        pass
-def build_progress_trend(sessions):
-    if len(sessions) < 5:
-        remaining = 5 - len(sessions)
-        return {
-            'locked': True,
-            'message': f"Log {remaining} more session{'s' if remaining != 1 else ''} to view the full chart.",
-            'emoji': '🔒'
-        }
-
-    session_metrics = []
-    for s in sessions:
-        val = _session_metric_value(s)
-        if val is not None:
-            session_metrics.append(val)
-            
-    if len(session_metrics) < 5:
-        return {
-            'locked': True,
-            'message': "Log more sessions with weight and reps to view the full chart.",
-            'emoji': '🔒'
-        }
-
-    recent_metrics = session_metrics[-5:]
-    recent_max = max(recent_metrics)
-    
-    previous_metrics = session_metrics[:-5]
-    
-    if not previous_metrics:
-        return {
-            'locked': False,
-            'message': f"🔥 Peak estimated 1RM over your last 5 sessions is {format_weight(recent_max)}kg.",
-            'emoji': '🔥'
-        }
-
-    baseline_metrics = previous_metrics[-5:]
-    baseline_max = max(baseline_metrics)
-    
-    delta = recent_max - baseline_max
-
-    if delta > 0:
-        return {
-            'locked': False,
-            'message': f"📈 Peak estimated 1RM is up recently (+{format_weight(delta)}kg vs previous sessions).",
-            'emoji': '📈'
-        }
-
-    if delta < 0:
-        return {
-            'locked': False,
-            'message': f"📉 Peak estimated 1RM is down recently ({format_weight(abs(delta))}kg vs previous sessions).",
-            'emoji': '📉'
-        }
 
 def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=None, order_desc=True):
     query = """
@@ -249,10 +170,14 @@ def fetch_user_sessions(conn, user_id, exercise=None, date_range=None, limit=Non
     """
     params = [user_id]
 
-    if date_range in ('7', '30'):
-        cutoff = (date.today() - timedelta(days=int(date_range))).isoformat()
-        query += " AND es.date >= %s"
-        params.append(cutoff)
+    if date_range:
+        try:
+            days = int(date_range)
+            cutoff = (date.today() - timedelta(days=days)).isoformat()
+            query += " AND es.date >= %s"
+            params.append(cutoff)
+        except (ValueError, TypeError):
+            pass
 
     if exercise:
         query += " AND e.name = %s"

@@ -37,15 +37,20 @@ class DBConnection:
         # Capture lastrowid if it was an INSERT with RETURNING id
         lastrowid = None
         if cur.description and query.strip().upper().startswith("INSERT"):
-            cols = [d[0] for d in cur.description]
+            # Lowercase columns for case-insensitive matching
+            cols = [d[0].lower() for d in cur.description]
             if "id" in cols:
                 try:
+                    # fetchone() should only be called if there's a result and we haven't fetched it yet.
+                    # Since we just executed the query, we check rowcount.
                     if cur.rowcount > 0:
+                        # We use fetchone() here to get the RETURNING value.
+                        # This consumes the result, which is fine for an INSERT.
                         row = cur.fetchone()
                         if row:
                             lastrowid = row[cols.index("id")]
-                except:
-                    pass
+                except Exception as e:
+                    print(f"⚠️ Warning: Could not capture lastrowid: {e}")
         
         self.conn.commit()
         return DBCursor(cur, lastrowid=lastrowid)

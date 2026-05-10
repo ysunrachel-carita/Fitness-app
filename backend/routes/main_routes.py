@@ -39,52 +39,52 @@ def dashboard():
 @main_bp.route("/profile", methods=["GET", "POST"])
 @login_required
 def profile():
-    conn = get_db()
     user_id = session["user_id"]
-    
-    if request.method == "POST":
-        display_name = request.form.get("display_name")
-        weight = request.form.get("weight")
-        weight_unit = request.form.get("weight_unit", "kg")
-        height = request.form.get("height")
-        height_unit = request.form.get("height_unit", "cm")
-        goal = request.form.get("goal")
-        freq = request.form.get("training_frequency", 3)
-        
-        # Check if profile exists
-        existing = conn.execute("SELECT id FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
-        
-        if existing:
-            conn.execute("""
-                UPDATE profiles SET 
-                    display_name = %s, weight_display = %s, weight_unit = %s,
-                    height_display = %s, height_unit = %s, goal = %s, 
-                    training_frequency = %s
-                WHERE user_id = %s
-            """, (display_name, weight, weight_unit, height, height_unit, goal, freq, user_id))
-        else:
-            conn.execute("""
-                INSERT INTO profiles (user_id, display_name, weight_display, weight_unit, height_display, height_unit, goal, training_frequency)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-            """, (user_id, display_name, weight, weight_unit, height, height_unit, goal, freq))
+    conn = get_db()
+    try:
+        if request.method == "POST":
+            display_name = request.form.get("display_name")
+            weight = request.form.get("weight")
+            weight_unit = request.form.get("weight_unit", "kg")
+            height = request.form.get("height")
+            height_unit = request.form.get("height_unit", "cm")
+            goal = request.form.get("goal")
+            freq = request.form.get("training_frequency", 3)
             
-        conn.commit()
-        # Update session display_name
-        if display_name:
-            session["display_name"] = display_name
+            # Check if profile exists
+            existing = conn.execute("SELECT id FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
             
-        flash("Profile updated successfully!", "success")
-        return redirect(url_for("main.profile"))
+            if existing:
+                conn.execute("""
+                    UPDATE profiles SET 
+                        display_name = %s, weight_display = %s, weight_unit = %s,
+                        height_display = %s, height_unit = %s, goal = %s, 
+                        training_frequency = %s
+                    WHERE user_id = %s
+                """, (display_name, weight, weight_unit, height, height_unit, goal, freq, user_id))
+            else:
+                conn.execute("""
+                    INSERT INTO profiles (user_id, display_name, weight_display, weight_unit, height_display, height_unit, goal, training_frequency)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (user_id, display_name, weight, weight_unit, height, height_unit, goal, freq))
+                
+            conn.commit()
+            # Update session display_name
+            if display_name:
+                session["display_name"] = display_name
+                
+            flash("Profile updated successfully!", "success")
+            return redirect(url_for("main.profile"))
 
-    # GET request
-    profile_data = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
-    conn.close()
-    
-    return render_template("profile.html", 
-        profile=profile_data or {}, 
-        username=session.get("username"), 
-        page='profile'
-    )
+        # GET request
+        profile_data = conn.execute("SELECT * FROM profiles WHERE user_id = %s", (user_id,)).fetchone()
+        return render_template("profile.html", 
+            profile=profile_data or {}, 
+            username=session.get("username"), 
+            page='profile'
+        )
+    finally:
+        conn.close()
 
 @main_bp.route("/change-password", methods=["GET", "POST"])
 @login_required

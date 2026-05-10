@@ -569,7 +569,7 @@
 
             const payload = {
                 date: document.getElementById('workout_date').value,
-                name: document.getElementById('workout_name').value.trim() || 'Untitled Workout',
+                title: document.getElementById('workout_name').value.trim() || 'Untitled Workout',
                 notes: document.getElementById('workout_notes').value.trim(),
                 result: document.getElementById('workout_result').value.trim(),
                 repeat: 1,
@@ -577,7 +577,7 @@
                 time_cap_minutes: parseInt(document.getElementById('workout_time_cap').value) || null,
                 emom_interval: parseInt(document.getElementById('workout_emom_interval').value) || null,
                 emom_duration: parseInt(document.getElementById('workout_emom_duration').value) || null,
-                set_groups: []
+                groups: []
             };
 
             const repeatCount = parseInt(document.getElementById('workout_repeat').value) || 1;
@@ -660,7 +660,7 @@
                         }
                     });
                     if (components.length > 0) {
-                        payload.set_groups.push({ components, rest_seconds: gs.rest });
+                        payload.groups.push({ components, rest_seconds: gs.rest });
                     }
                 });
             }
