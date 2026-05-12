@@ -76,7 +76,7 @@
                 </div>
 
                 <div id="edit-form-{{ run.id }}" style="display: none;">
-                    <form action="#" method="POST">
+                    <form action="/runs/{{ run.id }}/edit" method="POST">
                         <input type="hidden" name="filter_range" value="{{ current_range }}">
 
                         <div class="form-group">

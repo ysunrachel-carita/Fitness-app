@@ -133,3 +133,75 @@ def exercise_recent_performance():
         })
             
     return jsonify({'entries': entries})
+
+@lift_bp.route('/delete_lift/<int:lift_id>', methods=['POST'])
+@login_required
+def delete_lift(lift_id):
+    conn = get_db()
+    user_id = session["user_id"]
+    
+    # Check ownership
+    ls = conn.execute("SELECT id FROM lift_sessions WHERE id = %s AND user_id = %s", (lift_id, user_id)).fetchone()
+    if not ls:
+        conn.close()
+        return jsonify({"success": False, "error": "Lift not found"}), 404
+        
+    conn.execute("DELETE FROM lift_sessions WHERE id = %s", (lift_id,))
+    conn.commit()
+    conn.close()
+    
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": True})
+        
+    flash("Lift deleted", "success")
+    return redirect(url_for('lift.lift_history'))
+
+@lift_bp.route('/lifts/<int:lift_id>/edit', methods=['POST'])
+@login_required
+def edit_lift(lift_id):
+    conn = get_db()
+    user_id = session["user_id"]
+    
+    # Check ownership
+    ls = conn.execute("SELECT id FROM lift_sessions WHERE id = %s AND user_id = %s", (lift_id, user_id)).fetchone()
+    if not ls:
+        conn.close()
+        return jsonify({"success": False, "error": "Lift not found"}), 404
+        
+    try:
+        exercise_name = request.form.get("exercise")
+        lift_date = request.form.get("date")
+        notes = request.form.get("notes")
+        weights = request.form.getlist("weight_kg[]")
+        reps = request.form.getlist("reps[]")
+        
+        from exercises import resolve_exercise
+        ex_id, ex_name = resolve_exercise(conn, exercise_name)
+        
+        conn.execute("""
+            UPDATE lift_sessions SET exercise_id = %s, date = %s, notes = %s 
+            WHERE id = %s
+        """, (ex_id, lift_date, notes, lift_id))
+        
+        # Delete old sets and insert new ones
+        conn.execute("DELETE FROM lift_sets WHERE lift_session_id = %s", (lift_id,))
+        for i in range(len(weights)):
+            w = float(weights[i]) if weights[i] else 0
+            r = int(reps[i]) if reps[i] else 0
+            conn.execute("""
+                INSERT INTO lift_sets (lift_session_id, weight_kg, reps, order_index)
+                VALUES (%s, %s, %s, %s)
+            """, (lift_id, w, r, i))
+            
+        conn.commit()
+        
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            return jsonify({"success": True})
+            
+        flash("Lift updated", "success")
+        return redirect(url_for('lift.lift_history'))
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()

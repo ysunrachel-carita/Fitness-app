@@ -158,3 +158,110 @@ def workout_history():
         filter_exercises=filter_exercises,
         page='history'
     )
+
+@workout_bp.route('/workout_sessions/<int:ws_id>/delete', methods=['POST'])
+@login_required
+def delete_workout_session(ws_id):
+    conn = get_db()
+    user_id = session["user_id"]
+    
+    # Ensure the workout belongs to the user
+    ws = conn.execute("SELECT id FROM workout_sessions WHERE id = %s AND user_id = %s", (ws_id, user_id)).fetchone()
+    if not ws:
+        conn.close()
+        return jsonify({"success": False, "error": "Workout not found"}), 404
+        
+    conn.execute("DELETE FROM workout_sessions WHERE id = %s", (ws_id,))
+    conn.commit()
+    conn.close()
+    
+    if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+        return jsonify({"success": True})
+        
+    flash("Workout deleted", "success")
+    return redirect(url_for('workout.workout_history'))
+
+@workout_bp.route('/workout_sessions/<int:ws_id>/edit', methods=['POST'])
+@login_required
+def edit_workout_session(ws_id):
+    conn = get_db()
+    user_id = session["user_id"]
+    
+    # Ensure the workout belongs to the user
+    ws = conn.execute("SELECT id FROM workout_sessions WHERE id = %s AND user_id = %s", (ws_id, user_id)).fetchone()
+    if not ws:
+        conn.close()
+        return jsonify({"success": False, "error": "Workout not found"}), 404
+        
+    try:
+        # 1. Update main session data
+        name = request.form.get("name", "Untitled Workout")
+        workout_date = request.form.get("date")
+        notes = request.form.get("notes")
+        result = request.form.get("result")
+        context = request.form.get("context")
+        time_cap = request.form.get("time_cap_minutes") or None
+        emom_interval = request.form.get("emom_interval") or None
+        emom_duration = request.form.get("emom_duration") or None
+        
+        conn.execute("""
+            UPDATE workout_sessions SET 
+                title = %s, date = %s, notes = %s, result = %s, 
+                context = %s, time_cap_minutes = %s, emom_interval = %s, emom_duration = %s
+            WHERE id = %s
+        """, (name, workout_date, notes, result, context, time_cap, emom_interval, emom_duration, ws_id))
+        
+        # 2. Update components (simplified: loop through provided IDs)
+        comp_ids = request.form.getlist("comp_id[]")
+        comp_exercises = request.form.getlist("comp_exercise[]")
+        comp_weights = request.form.getlist("comp_weight[]")
+        comp_reps = request.form.getlist("comp_reps[]")
+        
+        for i, cid in enumerate(comp_ids):
+            ex_id, _ = resolve_exercise(conn, comp_exercises[i])
+            weight = float(comp_weights[i]) if comp_weights[i] else None
+            reps = int(comp_reps[i]) if comp_reps[i] else None
+            
+            conn.execute("""
+                UPDATE set_components SET 
+                    exercise_id = %s, weight_kg = %s, reps = %s
+                WHERE id = %s
+            """, (ex_id, weight, reps, cid))
+            
+        # 3. Update group rest
+        group_ids = request.form.getlist("group_id[]")
+        rest_mins = request.form.getlist("group_rest_min[]")
+        rest_secs = request.form.getlist("group_rest_seconds[]")
+        
+        for i, gid in enumerate(group_ids):
+            rm = int(rest_mins[i]) if rest_mins[i] else 0
+            rs = int(rest_secs[i]) if rest_secs[i] else 0
+            total_rest = rm * 60 + rs
+            conn.execute("UPDATE set_groups SET rest_seconds = %s WHERE id = %s", (total_rest, gid))
+
+        conn.commit()
+        
+        if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+            # Return updated session for frontend JS
+            return jsonify({
+                "success": True, 
+                "session": {
+                    "id": ws_id,
+                    "name": name,
+                    "date": workout_date,
+                    "notes": notes,
+                    "result": result,
+                    "context": context,
+                    "time_cap_minutes": time_cap,
+                    "emom_interval": emom_interval,
+                    "emom_duration": emom_duration
+                }
+            })
+            
+        flash("Workout updated", "success")
+        return redirect(url_for('workout.workout_history'))
+    except Exception as e:
+        conn.rollback()
+        return jsonify({"success": False, "error": str(e)}), 500
+    finally:
+        conn.close()

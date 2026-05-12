@@ -87,7 +87,7 @@
 
                 <!-- Edit Form -->
                 <div id="edit-form-{{ lift.id }}" style="display: none;">
-                    <form action="#" method="POST">
+                    <form action="/lifts/{{ lift.id }}/edit" method="POST">
                         <input type="hidden" name="filter_range" value="{{ current_range }}">
                         <input type="hidden" name="filter_exercise" value="{{ current_exercise }}">
 
@@ -169,8 +169,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-action="edit"]').forEach(function(btn) {
         btn.addEventListener('click', function() {
             const id = this.dataset.liftId;
-            const form = document.getElementById('edit-form-' + id);
-            if (form) form.style.display = 'block';
+            const formDiv = document.getElementById('edit-form-' + id);
+            if (formDiv) formDiv.style.display = 'block';
         });
     });
 
@@ -178,8 +178,34 @@ document.addEventListener('DOMContentLoaded', function() {
     document.querySelectorAll('[data-action="cancel"]').forEach(function(btn) {
         btn.addEventListener('click', function() {
             const id = this.dataset.liftId;
-            const form = document.getElementById('edit-form-' + id);
-            if (form) form.style.display = 'none';
+            const formDiv = document.getElementById('edit-form-' + id);
+            if (formDiv) formDiv.style.display = 'none';
+        });
+    });
+
+    // ---- Edit Submit (AJAX) ----
+    document.querySelectorAll('div[id^="edit-form-"] form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const row = form.closest('.history-row');
+            
+            fetch(form.action, {
+                method: 'POST',
+                body: new FormData(form),
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    // Simple approach: reload to show enriched data
+                    // (Lifts history enrichment is complex, so reload is safest for now)
+                    window.location.reload();
+                } else {
+                    alert(data.error || 'Edit failed');
+                }
+            })
+            .catch(() => alert('Error updating lift'));
         });
     });
 
