@@ -31,8 +31,13 @@ def create_workout_session(user_id, data):
 
         for group_index, group in enumerate(data.get('groups', [])):
             sg_cursor = conn.execute(
-                "INSERT INTO set_groups (workout_session_id, title, order_index) VALUES (%s, %s, %s) RETURNING id",
-                (ws_id, group.get('title', '').strip() or f"Group {group_index+1}", group_index)
+                "INSERT INTO set_groups (workout_session_id, title, order_index, rest_seconds) VALUES (%s, %s, %s, %s) RETURNING id",
+                (
+                    ws_id, 
+                    group.get('title', '').strip() or f"Group {group_index+1}", 
+                    group_index,
+                    group.get('rest_seconds')
+                )
             )
             sg_id = sg_cursor.lastrowid
 
@@ -42,18 +47,24 @@ def create_workout_session(user_id, data):
 
                 ex_id, ex_name = resolve_exercise(conn, exercise_name)
                 
+                # Calculate time_seconds if minutes/seconds provided
+                minutes = int(comp.get('minutes') or 0)
+                seconds = int(comp.get('seconds') or 0)
+                time_seconds = (minutes * 60 + seconds) if (minutes or seconds) else None
+
                 conn.execute(
                     """
                     INSERT INTO set_components 
-                    (set_group_id, exercise_id, sets, reps, weight_kg, weight_percent, calories, distance_km, time_seconds, shuttle_distance, order_index)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    (set_group_id, exercise_id, sets, reps, weight_kg, weight_percent, calories, 
+                     distance_meters, time_seconds, shuttle_distance, target_type, order_index)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         sg_id, ex_id, 
                         comp.get('sets'), comp.get('reps'), comp.get('weight_kg'), 
                         comp.get('weight_percent'), comp.get('calories'), 
-                        comp.get('distance_km'), comp.get('time_seconds'), 
-                        comp.get('shuttle_distance'), comp_index
+                        comp.get('distance_meters'), time_seconds, 
+                        comp.get('shuttle_distance'), comp.get('target_type'), comp_index
                     )
                 )
 
