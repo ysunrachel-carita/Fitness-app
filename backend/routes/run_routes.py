@@ -13,6 +13,8 @@ def log_run():
     if request.method == 'POST':
         result, error = log_run_service(user_id, request.form)
         if error:
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": False, "error": error}), 400
             flash(error, "error")
             return redirect(url_for('run.log_run'))
 

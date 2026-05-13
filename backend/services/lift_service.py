@@ -129,34 +129,70 @@ def log_lift_service(user_id, payload):
         # Calculate if this is a PR
         is_pr = False
         current_val = current_session.get('session_value') or 0
-        if current_val > 0:
-            all_sets = conn.execute(
-                """
-                SELECT s.weight_kg, s.reps 
-                FROM lift_sets s
-                JOIN lift_sessions ls ON s.lift_session_id = ls.id
-                WHERE ls.user_id = %s AND ls.exercise_id = %s AND ls.id != %s
-                """, (user_id, exercise_id, ls_id)
+        
+        # Fetch previous sessions for this exercise to determine PR and first-time status
+        previous_sessions = conn.execute(
+            """
+            SELECT id, date, notes
+            FROM lift_sessions
+            WHERE user_id = %s AND exercise_id = %s AND id != %s
+            ORDER BY date DESC, created_at DESC
+            """, (user_id, exercise_id, ls_id)
+        ).fetchall()
+        
+        prev_data = None
+        if previous_sessions:
+            prev_row = previous_sessions[0]
+            # Fetch sets for this specific session to show in toast
+            prev_sets = conn.execute(
+                "SELECT weight_kg, reps FROM lift_sets WHERE lift_session_id = %s",
+                (prev_row['id'],)
             ).fetchall()
             
-            prev_max = 0
-            for s in all_sets:
-                try:
-                    w = float(s['weight_kg'])
-                    r = int(s['reps'])
-                    val = estimate_one_rep_max(w, r)
-                    if val and val > prev_max:
-                        prev_max = val
-                except (TypeError, ValueError):
-                    pass
-                    
-            if current_val > prev_max:
-                is_pr = True
+            best_prev = _build_best_set([dict(s) for s in prev_sets])
+            
+            prev_data = {
+                'id': prev_row['id'],
+                'date': str(prev_row['date']),
+                'weight': best_prev['weight_kg'] if best_prev else 0,
+                'reps': best_prev['reps'] if best_prev else 0
+            }
+
+            if current_val > 0:
+                # Calculate prev_max from ALL previous sets
+                all_prev_sets = conn.execute(
+                    """
+                    SELECT s.weight_kg, s.reps 
+                    FROM lift_sets s
+                    JOIN lift_sessions ls ON s.lift_session_id = ls.id
+                    WHERE ls.user_id = %s AND ls.exercise_id = %s AND ls.id != %s
+                    """, (user_id, exercise_id, ls_id)
+                ).fetchall()
+                
+                prev_max = 0
+                for s in all_prev_sets:
+                    try:
+                        w = float(s['weight_kg'])
+                        r = int(s['reps'])
+                        val = estimate_one_rep_max(w, r)
+                        if val and val > prev_max:
+                            prev_max = val
+                    except (TypeError, ValueError):
+                        pass
+                        
+                if current_val > prev_max:
+                    is_pr = True
 
         return {
             'current_session': current_session,
-            'is_pr': is_pr
+            'is_pr': is_pr,
+            'previous': prev_data
         }, None
+    except Exception as e:
+        import traceback
+        print(f"❌ ERROR IN log_lift_service: {e}")
+        traceback.print_exc()
+        return None, f"Server error while logging lift: {str(e)}"
     finally:
         conn.close()
 

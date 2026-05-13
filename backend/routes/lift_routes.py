@@ -20,6 +20,8 @@ def log_lifts():
         result, error = log_lift_service(user_id, payload)
         
         if error:
+            if request.headers.get("X-Requested-With") == "XMLHttpRequest":
+                return jsonify({"success": False, "error": error}), 400
             flash(error, "error")
             return redirect(url_for('lift.log_lifts'))
 
